@@ -15,52 +15,14 @@ import {
   Star,
 } from "lucide-react";
 import { AssessmentForm } from "@/components/assessment-form";
+import { formatPrice, getPublicSiteData } from "@/lib/aspire/public-data";
 
-const packages = [
-  {
-    name: "Exterior Wash",
-    car: "$34.95",
-    large: "$39.95",
-    summary: "A crisp maintenance wash with polish and protection.",
-    includes: ["Wash & dry", "Quick polish / sealer", "Windows & door jambs", "Wheels & tire dressing"],
-  },
-  {
-    name: "Exterior Detail",
-    car: "$74.95",
-    large: "$79.95",
-    summary: "Decontamination and shine for tired exterior surfaces.",
-    includes: ["Foam bath", "Clay bar", "Bug & tar removal", "Quick polish / sealer"],
-  },
-  {
-    name: "Interior Clean",
-    car: "$99.95",
-    large: "$109.95",
-    summary: "A practical interior reset for your daily driver.",
-    includes: ["Full vacuum", "Hard-surface wipe-down", "Leather, plastic & trim", "Windows & door jambs"],
-  },
-  {
-    name: "Standard Detail",
-    car: "$119.95",
-    large: "$129.95",
-    summary: "Our streamlined inside-and-out maintenance package.",
-    includes: ["Interior cleaning", "Exterior cleaning", "Windows inside & out", "Wheels & tires"],
-  },
-  {
-    name: "Interior Detail",
-    car: "$149.95",
-    large: "$159.95",
-    summary: "A deeper clean focused on stains, surfaces and comfort.",
-    includes: ["Full vacuum", "Surface stain removal", "Scrub & clean all trim", "Leather & surface conditioning"],
-  },
-  {
-    name: "Full Detail",
-    car: "$269.95",
-    large: "$289.95",
-    summary: "The complete interior and exterior transformation.",
-    includes: ["Interior Detail package", "Exterior Detail package", "Clay-bar decontamination", "Conditioning & protection"],
-    featured: true,
-  },
-];
+export const revalidate = 60;
+
+function displayAmount(value: number | null) {
+  if (value === null) return "Quote only";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: value % 1 ? 2 : 0 }).format(value);
+}
 
 const reviews = [
   { quote: "My car looks brand new!", name: "Tesha Lisa Cox" },
@@ -78,7 +40,15 @@ const hours = [
   ["Sunday", "Closed"],
 ];
 
-export default function Home() {
+export default async function Home() {
+  const { catalog, rewards, loyalty } = await getPublicSiteData();
+  const packages = catalog.filter((item) => item.section === "package");
+  const addons = catalog.filter((item) => item.section === "addon");
+  const specialty = catalog.filter((item) => item.section === "specialty");
+  const courses = catalog.filter((item) => item.section === "course");
+  const featuredPackage = packages.find((item) => item.is_featured) ?? packages.at(-1);
+  const specialtyIcons = [ShieldCheck, Sparkles, MapPin];
+
   return (
     <main className="min-h-screen overflow-hidden bg-background text-foreground">
       <div className="promo-bar">
@@ -121,12 +91,12 @@ export default function Home() {
           <Image className="hero-image" src="/mobile-auto-detailing-hero.png" alt="Glossy black vehicle being washed with detailing foam" fill priority sizes="(max-width: 980px) 100vw, 50vw" />
           <div className="hero-image-shade" />
           <p className="motto">“Never a problem, Always a solution.”</p>
-          <div className="service-ticket">
+          {featuredPackage && <div className="service-ticket">
             <span className="ticket-kicker">POPULAR PACKAGE</span>
-            <div><Sparkles size={22} /><strong>Full Detail</strong></div>
-            <p>Interior detail + exterior detail package</p>
-            <footer><span>Starting at</span><b>$269.95</b></footer>
-          </div>
+            <div><Sparkles size={22} /><strong>{featuredPackage.name}</strong></div>
+            <p>{featuredPackage.summary}</p>
+            <footer><span>{featuredPackage.is_quote_only ? "Custom pricing" : featuredPackage.is_starting_at ? "Starting at" : "Price"}</span><b>{featuredPackage.is_quote_only ? "Quote" : displayAmount(featuredPackage.primary_price)}</b></footer>
+          </div>}
         </div>
       </section>
 
@@ -139,7 +109,7 @@ export default function Home() {
           <article className="service-card" key={service.name}>
             <p>{service.summary}</p>
             <h3>{service.name}</h3>
-            <span>from <strong>{service.car}</strong></span>
+            <span><strong>{formatPrice(service)}</strong></span>
           </article>
         ))}
       </section>
@@ -150,20 +120,20 @@ export default function Home() {
             <span className="section-index">01 / PACKAGES</span>
             <h2>Choose your level of clean.</h2>
           </div>
-          <p>Prices shown are starting points. Vehicle size and condition may affect the final price, so every job begins with an assessment.</p>
+          <p>Prices marked “from” are starting points. Vehicle size and condition may affect the final price, so every job begins with an assessment.</p>
         </div>
 
         <div className="package-grid">
           {packages.map((pkg) => (
-            <article className={`package-card ${pkg.featured ? "featured" : ""}`} key={pkg.name}>
-              {pkg.featured && <span className="featured-tag">MOST COMPLETE</span>}
+            <article className={`package-card ${pkg.is_featured ? "featured" : ""}`} key={pkg.id}>
+              {pkg.is_featured && <span className="featured-tag">MOST COMPLETE</span>}
               <p className="package-summary">{pkg.summary}</p>
               <h3>{pkg.name}</h3>
               <div className="price-row">
-                <div><span>Cars / mid-size</span><strong>{pkg.car}</strong></div>
-                <div><span>Large SUV / truck / van</span><strong>{pkg.large}</strong></div>
+                <div><span>{pkg.primary_price_label || "Primary price"}</span><strong>{pkg.is_quote_only ? "Quote only" : `${pkg.is_starting_at ? "from " : ""}${displayAmount(pkg.primary_price)}`}</strong></div>
+                {pkg.secondary_price !== null && <div><span>{pkg.secondary_price_label || "Secondary price"}</span><strong>{pkg.is_starting_at ? "from " : ""}{displayAmount(pkg.secondary_price)}</strong></div>}
               </div>
-              <ul>{pkg.includes.map((item) => <li key={item}><Check size={15} /> {item}</li>)}</ul>
+              <ul>{pkg.features.map((item) => <li key={item}><Check size={15} /> {item}</li>)}</ul>
               <a href="#contact">Ask about this package <ArrowRight size={16} /></a>
             </article>
           ))}
@@ -171,10 +141,7 @@ export default function Home() {
 
         <div className="addon-row">
           <span>Add-on services</span>
-          <div><b>Headlight renewal</b><em>$49.95</em></div>
-          <div><b>Steam cleaning</b><em>from $59.95</em></div>
-          <div><b>Engine bay</b><em>$64.95</em></div>
-          <div><b>Deep shampoo</b><em>from $89.95</em></div>
+          {addons.map((item) => <div key={item.id}><b>{item.name}</b><em>{formatPrice(item)}</em></div>)}
         </div>
       </section>
 
@@ -189,27 +156,10 @@ export default function Home() {
           </div>
         </div>
         <div className="specialty-cards">
-          <article>
-            <span>01</span>
-            <ShieldCheck />
-            <h3>Ceramic &amp; graphene coating</h3>
-            <p>Professional preparation and application with an in-person consultation.</p>
-            <strong>from $849.95</strong>
-          </article>
-          <article>
-            <span>02</span>
-            <Sparkles />
-            <h3>Exterior re-conditioning</h3>
-            <p>Buff and polish to improve gloss and address visible paint defects. Test spots recommended.</p>
-            <strong>from $299.95</strong>
-          </article>
-          <article>
-            <span>03</span>
-            <MapPin />
-            <h3>Boats, RVs &amp; specialty vehicles</h3>
-            <p>Mobile detailing for boats, side-by-sides, motor homes, campers and RVs.</p>
-            <strong>assessment required</strong>
-          </article>
+          {specialty.map((item, index) => {
+            const Icon = specialtyIcons[index % specialtyIcons.length];
+            return <article key={item.id}><span>{item.level_label || String(index + 1).padStart(2, "0")}</span><Icon /><h3>{item.name}</h3><p>{item.summary}</p><strong>{formatPrice(item)}</strong></article>;
+          })}
         </div>
       </section>
 
@@ -247,10 +197,7 @@ export default function Home() {
           <a className="button button-secondary" href="#contact">Ask about the next class <ArrowRight size={18} /></a>
         </div>
         <div className="course-list">
-          <article><span>LEVEL 1</span><div><h3>Basic Core Auto Detailing</h3><p>Interior, exterior, reconditioning, stains, odors and extraction.</p></div><strong>$500</strong></article>
-          <article><span>LEVEL 2</span><div><h3>Intermediate</h3><p>Paint correction, sanding, leveling and scratch-removal technique.</p></div><strong>$600</strong></article>
-          <article><span>LEVEL 3</span><div><h3>Advanced</h3><p>Ceramic and graphene coatings, SOPs and business essentials.</p></div><strong>$700</strong></article>
-          <article className="master-course"><span>MASTER</span><div><h3>All three levels</h3><p>A complete progression from fundamentals through advanced coatings.</p></div><strong>$1,500</strong></article>
+          {courses.map((course) => <article className={course.level_label === "MASTER" ? "master-course" : ""} key={course.id}><span>{course.level_label || "COURSE"}</span><div><h3>{course.name}</h3><p>{course.summary}</p></div><strong>{formatPrice(course)}</strong></article>)}
           <small>Course dates, duration, inclusions and promotional pricing are confirmed during enrollment.</small>
         </div>
       </section>
@@ -267,8 +214,8 @@ export default function Home() {
           <Star />
           <span>LOYALTY POINTS</span>
           <h2>Come back. Get rewarded.</h2>
-          <div className="points"><b>50</b><p>points to enroll</p></div>
-          <ul><li>25 points · cleaning, trim or merch rewards</li><li>50 points · leather, engine bay or apparel</li><li>100 points · free Standard Cleaning</li><li>200 points · free Deep Shampoo</li></ul>
+          <div className="points"><b>{loyalty.enrollment_points}</b><p>points to enroll</p></div>
+          <ul>{rewards.map((reward) => <li key={reward.id}>{reward.points_cost} points · {reward.name}</li>)}</ul>
           <small>Ask Aspire for current earning and redemption terms.</small>
         </div>
       </section>
@@ -304,7 +251,10 @@ export default function Home() {
         </div>
         <div className="form-shell">
           <div className="form-heading"><span>CONTACT ASPIRE</span><h3>Start your request</h3><p>Select detailing or classes to see the right questions.</p></div>
-          <AssessmentForm />
+          <AssessmentForm
+            serviceOptions={[...packages, ...addons, ...specialty].map((item) => item.name)}
+            classOptions={courses.map((item) => `${item.level_label ? `${item.level_label} - ` : ""}${item.name}`)}
+          />
         </div>
       </section>
 
@@ -315,7 +265,7 @@ export default function Home() {
           <a href="https://www.facebook.com/kristalsaspirations" target="_blank" rel="noreferrer" aria-label="Aspire on Facebook">fb</a>
           <a href="https://www.instagram.com/sun1985shine" target="_blank" rel="noreferrer" aria-label="Aspire on Instagram">ig</a>
         </div>
-        <small>Prices are starting points and may vary by vehicle size and condition. Holiday closures may apply.</small>
+        <small>Prices marked “from” may vary by vehicle size and condition. Holiday closures may apply.</small>
       </footer>
     </main>
   );

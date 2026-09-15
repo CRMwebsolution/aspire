@@ -12,8 +12,8 @@ type AssessmentPayload = {
   email?: string;
   county: "Carteret" | "Onslow" | "Craven" | "Other";
   vehicle_type?: "Car / Sedan" | "SUV / Truck / Van" | "Boat" | "Side-by-side" | "Motor home / Camper / RV" | "Other";
-  service_interest?: "Exterior Wash" | "Exterior Detail Package" | "Interior Clean" | "Standard Detail" | "Interior Detail Package" | "Full Detail" | "Exterior Re-Condition" | "Ceramic / Graphene Coating" | "Specialty Vehicle" | "Not sure";
-  class_interest?: "Level 1 - Basic Core Auto Detailing" | "Level 2 - Intermediate" | "Level 3 - Advanced" | "Master - All three levels" | "Not sure";
+  service_interest?: string;
+  class_interest?: string;
   preferred_window?: string;
   notes?: string;
   consent_to_contact: true;
@@ -54,7 +54,7 @@ function successMessage(requestType: AssessmentPayload["request_type"]) {
     : "Request received. Aspire will follow up to confirm the right service and price.";
 }
 
-export function AssessmentForm() {
+export function AssessmentForm({ serviceOptions, classOptions }: { serviceOptions: string[]; classOptions: string[] }) {
   const [requestType, setRequestType] = useState<AssessmentPayload["request_type"] | "">("");
   const [status, setStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
@@ -77,8 +77,8 @@ export function AssessmentForm() {
           email: { type: "string", format: "email" },
           county: { type: "string", enum: ["Carteret", "Onslow", "Craven", "Other"] },
           vehicle_type: { type: "string", enum: ["Car / Sedan", "SUV / Truck / Van", "Boat", "Side-by-side", "Motor home / Camper / RV", "Other"] },
-          service_interest: { type: "string", enum: ["Exterior Wash", "Exterior Detail Package", "Interior Clean", "Standard Detail", "Interior Detail Package", "Full Detail", "Exterior Re-Condition", "Ceramic / Graphene Coating", "Specialty Vehicle", "Not sure"] },
-          class_interest: { type: "string", enum: ["Level 1 - Basic Core Auto Detailing", "Level 2 - Intermediate", "Level 3 - Advanced", "Master - All three levels", "Not sure"] },
+          service_interest: { type: "string", enum: ["Not sure", ...serviceOptions] },
+          class_interest: { type: "string", enum: ["Not sure", ...classOptions] },
           preferred_window: { type: "string", maxLength: 160 },
           notes: { type: "string", maxLength: 2000 },
           consent_to_contact: { type: "boolean", const: true },
@@ -105,7 +105,7 @@ export function AssessmentForm() {
     }, { signal: lifecycle.signal })).catch(() => undefined);
 
     return () => lifecycle.abort();
-  }, []);
+  }, [classOptions, serviceOptions]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -178,10 +178,10 @@ export function AssessmentForm() {
             {requestType === "detailing" ? (
               <>
                 <label>Vehicle<select name="vehicle_type" required defaultValue=""><option value="" disabled>Select vehicle</option><option>Car / Sedan</option><option>SUV / Truck / Van</option><option>Boat</option><option>Side-by-side</option><option>Motor home / Camper / RV</option><option>Other</option></select></label>
-                <label>Service<select name="service_interest" required defaultValue="Not sure"><option>Not sure</option><option>Exterior Wash</option><option>Exterior Detail Package</option><option>Interior Clean</option><option>Standard Detail</option><option>Interior Detail Package</option><option>Full Detail</option><option>Exterior Re-Condition</option><option>Ceramic / Graphene Coating</option><option>Specialty Vehicle</option></select></label>
+                <label>Service<select name="service_interest" required defaultValue="Not sure"><option>Not sure</option>{serviceOptions.map((option) => <option key={option}>{option}</option>)}</select></label>
               </>
             ) : (
-              <label className="full-field">Class of interest<select name="class_interest" required defaultValue="Not sure"><option>Not sure</option><option value="Level 1 - Basic Core Auto Detailing">Level 1 · Basic Core Auto Detailing</option><option value="Level 2 - Intermediate">Level 2 · Intermediate</option><option value="Level 3 - Advanced">Level 3 · Advanced</option><option value="Master - All three levels">Master · All three levels</option></select></label>
+              <label className="full-field">Class of interest<select name="class_interest" required defaultValue="Not sure"><option>Not sure</option>{classOptions.map((option) => <option key={option}>{option}</option>)}</select></label>
             )}
           </div>
           <label>{requestType === "class" ? "Preferred class timing" : "Preferred appointment window"} <span>optional</span><input name="preferred_window" maxLength={160} placeholder={requestType === "class" ? "Example: weekends or the next available class" : "Example: Friday morning"} /></label>

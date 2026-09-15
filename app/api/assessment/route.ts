@@ -4,9 +4,7 @@ export const runtime = "nodejs";
 
 const counties = new Set(["Carteret", "Onslow", "Craven", "Other"]);
 const vehicles = new Set(["Car / Sedan", "SUV / Truck / Van", "Boat", "Side-by-side", "Motor home / Camper / RV", "Other"]);
-const services = new Set(["Exterior Wash", "Exterior Detail Package", "Interior Clean", "Standard Detail", "Interior Detail Package", "Full Detail", "Exterior Re-Condition", "Ceramic / Graphene Coating", "Specialty Vehicle", "Not sure"]);
 const requestTypes = new Set(["detailing", "class"]);
-const classInterests = new Set(["Level 1 - Basic Core Auto Detailing", "Level 2 - Intermediate", "Level 3 - Advanced", "Master - All three levels", "Not sure"]);
 
 function clean(value: unknown, max: number) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -26,8 +24,8 @@ export async function POST(request: Request) {
       email: clean(body.email, 254) || null,
       county: clean(body.county, 20),
       vehicle_type: requestType === "detailing" ? clean(body.vehicle_type, 50) : null,
-      service_interest: requestType === "detailing" ? clean(body.service_interest, 60) : null,
-      class_interest: requestType === "class" ? clean(body.class_interest, 80) : null,
+      service_interest: requestType === "detailing" ? clean(body.service_interest, 120) : null,
+      class_interest: requestType === "class" ? clean(body.class_interest, 120) : null,
       preferred_window: clean(body.preferred_window, 160) || null,
       notes: clean(body.notes, 2000) || null,
       consent_to_contact: body.consent_to_contact === true,
@@ -35,8 +33,8 @@ export async function POST(request: Request) {
     };
 
     const validRequestDetails = requestType === "detailing"
-      ? vehicles.has(payload.vehicle_type || "") && services.has(payload.service_interest || "")
-      : requestType === "class" && classInterests.has(payload.class_interest || "");
+      ? vehicles.has(payload.vehicle_type || "") && Boolean(payload.service_interest)
+      : requestType === "class" && Boolean(payload.class_interest);
 
     if (!requestTypes.has(requestType) || payload.name.length < 2 || payload.phone.length < 7 || !counties.has(payload.county) || !validRequestDetails || !payload.consent_to_contact) {
       return NextResponse.json({ ok: false, error: "Please complete the required fields." }, { status: 400 });
