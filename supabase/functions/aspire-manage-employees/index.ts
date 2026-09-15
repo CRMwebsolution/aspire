@@ -121,6 +121,7 @@ Deno.serve(async (request) => {
           redirectTo: safeRedirect(body.redirect_to),
         });
         if (inviteResult.error) throw inviteResult.error;
+        if (!inviteResult.data.user) throw new Error("Supabase did not return the invited user.");
         employeeUser = inviteResult.data.user;
         invited = true;
       }
