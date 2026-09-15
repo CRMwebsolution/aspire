@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 @import "../vendor/shadcn-tailwind-4.13.0.css";
 @import "./dashboard/dashboard.css";
+@import "./dashboard/employee-management.css";
 
 :root {
   --background: #090a0d;

@@ -116,13 +116,23 @@ export type PointsTransaction = {
   created_at: string;
 };
 
+export type EmployeeRole = "owner" | "admin" | "employee" | "support";
+
 export type EmployeeAccess = {
   business_key: string;
   user_id: string;
+  email: string;
   display_name: string;
-  role: "owner" | "employee" | "support";
+  role: EmployeeRole;
   is_active: boolean;
   is_hidden: boolean;
+};
+
+export type AppointmentAssignment = {
+  business_key: string;
+  appointment_id: string;
+  user_id: string;
+  assigned_at: string;
 };
 
 export type DashboardData = {
@@ -131,6 +141,8 @@ export type DashboardData = {
   rewards: Reward[];
   loyalty: LoyaltySettings;
   appointments: Appointment[];
+  assignments: AppointmentAssignment[];
+  employees: EmployeeAccess[];
   points: PointsTransaction[];
   inquiries: Inquiry[];
 };

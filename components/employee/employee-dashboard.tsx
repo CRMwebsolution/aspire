@@ -41,9 +41,11 @@ import {
   subWeeks,
 } from "date-fns";
 import { useRouter } from "next/navigation";
+import { EmployeeManagement } from "@/components/employee/employee-management";
 import { ASPIRE_BUSINESS_KEY, appointmentKinds, appointmentStatuses, catalogSections, earningModes } from "@/lib/aspire/constants";
 import type {
   Appointment,
+  AppointmentAssignment,
   AppointmentKind,
   AppointmentStatus,
   CatalogDraft,
@@ -59,7 +61,7 @@ import type {
 } from "@/lib/aspire/types";
 import { createClient } from "@/lib/supabase/client";
 
-type Tab = "overview" | "inquiries" | "calendar" | "customers" | "loyalty" | "catalog";
+type Tab = "overview" | "inquiries" | "calendar" | "customers" | "loyalty" | "catalog" | "employees";
 type CalendarView = "month" | "week" | "list";
 
 const tabs: Array<{ id: Tab; label: string; icon: typeof LayoutDashboard }> = [
@@ -69,6 +71,7 @@ const tabs: Array<{ id: Tab; label: string; icon: typeof LayoutDashboard }> = [
   { id: "customers", label: "Customers", icon: Users },
   { id: "loyalty", label: "Points & rewards", icon: Trophy },
   { id: "catalog", label: "Packages & pricing", icon: Tag },
+  { id: "employees", label: "Employees", icon: UserRound },
 ];
 
 const customerFields = "id,business_key,full_name,phone,email,vehicle_details,notes,starting_points,created_at,updated_at";
@@ -126,6 +129,7 @@ export function EmployeeDashboard({ initialData, access, userId }: { initialData
   const [busy, setBusy] = useState(false);
   const [customerEditor, setCustomerEditor] = useState<Customer | "new" | null>(null);
   const [appointmentEditor, setAppointmentEditor] = useState<Appointment | "new" | null>(null);
+  const [appointmentViewer, setAppointmentViewer] = useState<Appointment | null>(null);
   const [catalogEditor, setCatalogEditor] = useState<CatalogItem | "new" | null>(null);
   const [rewardEditor, setRewardEditor] = useState<Reward | "new" | null>(null);
   const [convertInquiry, setConvertInquiry] = useState<Inquiry | null>(null);
@@ -222,6 +226,7 @@ export function EmployeeDashboard({ initialData, access, userId }: { initialData
       setNotice({ kind: "error", text: "The end time must be after the start time." });
       return;
     }
+    const assignedUserIds = form.getAll("assigned_user_ids").map(String);
     const values = {
       business_key: ASPIRE_BUSINESS_KEY,
       customer_id: nullable(form.get("customer_id")),
@@ -240,19 +245,36 @@ export function EmployeeDashboard({ initialData, access, userId }: { initialData
     };
 
     await perform(current === "new" ? "Calendar item added." : "Calendar item updated.", async () => {
-      if (current === "new") {
-        const result = await supabase.from("aspire_appointments").insert({ ...values, created_by: userId }).select(appointmentFields).single();
-        if (result.error) throw result.error;
-        const appointment = result.data as Appointment;
-        setData((previous) => ({ ...previous, appointments: [...previous.appointments, appointment].sort((a, b) => a.starts_at.localeCompare(b.starts_at)) }));
-        await logActivity("appointment.created", "appointment", appointment.id, { title: appointment.title, kind: appointment.kind });
-      } else {
-        const result = await supabase.from("aspire_appointments").update(values).eq("id", current.id).eq("business_key", ASPIRE_BUSINESS_KEY).select(appointmentFields).single();
-        if (result.error) throw result.error;
-        const appointment = result.data as Appointment;
-        setData((previous) => ({ ...previous, appointments: previous.appointments.map((item) => item.id === appointment.id ? appointment : item).sort((a, b) => a.starts_at.localeCompare(b.starts_at)) }));
-        await logActivity("appointment.updated", "appointment", appointment.id, { title: appointment.title, status: appointment.status });
-      }
+      const appointmentResult = current === "new"
+        ? await supabase.from("aspire_appointments").insert({ ...values, created_by: userId }).select(appointmentFields).single()
+        : await supabase.from("aspire_appointments").update(values).eq("id", current.id).eq("business_key", ASPIRE_BUSINESS_KEY).select(appointmentFields).single();
+      if (appointmentResult.error) throw appointmentResult.error;
+      const appointment = appointmentResult.data as Appointment;
+
+      const assignmentResult = await supabase.rpc("aspire_set_appointment_assignments", {
+        p_appointment_id: appointment.id,
+        p_user_ids: assignedUserIds,
+      });
+      if (assignmentResult.error) throw assignmentResult.error;
+      const assignments = (assignmentResult.data ?? []) as AppointmentAssignment[];
+
+      setData((previous) => ({
+        ...previous,
+        appointments: [
+          ...previous.appointments.filter((item) => item.id !== appointment.id),
+          appointment,
+        ].sort((a, b) => a.starts_at.localeCompare(b.starts_at)),
+        assignments: [
+          ...previous.assignments.filter((item) => item.appointment_id !== appointment.id),
+          ...assignments,
+        ],
+      }));
+      await logActivity(
+        current === "new" ? "appointment.created" : "appointment.updated",
+        "appointment",
+        appointment.id,
+        { title: appointment.title, status: appointment.status, assigned_user_ids: assignedUserIds },
+      );
       setAppointmentEditor(null);
     });
   }
@@ -262,7 +284,11 @@ export function EmployeeDashboard({ initialData, access, userId }: { initialData
     await perform("Calendar item deleted.", async () => {
       const result = await supabase.from("aspire_appointments").delete().eq("id", appointment.id).eq("business_key", ASPIRE_BUSINESS_KEY);
       if (result.error) throw result.error;
-      setData((previous) => ({ ...previous, appointments: previous.appointments.filter((item) => item.id !== appointment.id) }));
+      setData((previous) => ({
+        ...previous,
+        appointments: previous.appointments.filter((item) => item.id !== appointment.id),
+        assignments: previous.assignments.filter((item) => item.appointment_id !== appointment.id),
+      }));
       await logActivity("appointment.deleted", "appointment", appointment.id, { title: appointment.title });
       setAppointmentEditor(null);
     });
@@ -280,6 +306,7 @@ export function EmployeeDashboard({ initialData, access, userId }: { initialData
   async function completeConversion(event: FormEvent<HTMLFormElement>, inquiry: Inquiry) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const assignedUserIds = form.getAll("assigned_user_ids").map(String);
     await perform("Inquiry converted to a customer and appointment.", async () => {
       let customer = inquiry.customer_id ? data.customers.find((item) => item.id === inquiry.customer_id) : undefined;
       if (!customer) {
@@ -318,6 +345,13 @@ export function EmployeeDashboard({ initialData, access, userId }: { initialData
       if (appointmentResult.error) throw appointmentResult.error;
       const appointment = appointmentResult.data as Appointment;
 
+      const assignmentResult = await supabase.rpc("aspire_set_appointment_assignments", {
+        p_appointment_id: appointment.id,
+        p_user_ids: assignedUserIds,
+      });
+      if (assignmentResult.error) throw assignmentResult.error;
+      const assignments = (assignmentResult.data ?? []) as AppointmentAssignment[];
+
       const inquiryResult = await supabase.from("aspire_assessment_requests").update({
         status: "scheduled",
         customer_id: customer.id,
@@ -330,9 +364,10 @@ export function EmployeeDashboard({ initialData, access, userId }: { initialData
         ...previous,
         customers: previous.customers.some((item) => item.id === customer!.id) ? previous.customers : [...previous.customers, customer!].sort((a, b) => a.full_name.localeCompare(b.full_name)),
         appointments: [...previous.appointments, appointment].sort((a, b) => a.starts_at.localeCompare(b.starts_at)),
+        assignments: [...previous.assignments, ...assignments],
         inquiries: previous.inquiries.map((item) => item.id === inquiry.id ? { ...item, status: "scheduled", customer_id: customer!.id, appointment_id: appointment.id } : item),
       }));
-      await logActivity("inquiry.converted", "inquiry", inquiry.id, { customer_id: customer.id, appointment_id: appointment.id });
+      await logActivity("inquiry.converted", "inquiry", inquiry.id, { customer_id: customer.id, appointment_id: appointment.id, assigned_user_ids: assignedUserIds });
       setConvertInquiry(null);
     });
   }
@@ -484,7 +519,10 @@ export function EmployeeDashboard({ initialData, access, userId }: { initialData
     });
   }
 
-  const currentTab = tabs.find((item) => item.id === tab)!;
+  const canManageCalendar = access.role === "owner" || access.role === "admin" || access.role === "support";
+  const canManageEmployees = canManageCalendar;
+  const visibleTabs = canManageEmployees ? tabs : tabs.filter((item) => item.id !== "employees");
+  const currentTab = visibleTabs.find((item) => item.id === tab) ?? visibleTabs[0];
   const newInquiryCount = data.inquiries.filter((inquiry) => inquiry.status === "new").length;
 
   return (
@@ -492,7 +530,7 @@ export function EmployeeDashboard({ initialData, access, userId }: { initialData
       <aside className={navOpen ? "employee-sidebar open" : "employee-sidebar"}>
         <div className="employee-sidebar-brand"><span className="brand-mark">A</span><div>ASPIRE<small>EMPLOYEE WORKSPACE</small></div><button type="button" onClick={() => setNavOpen(false)} aria-label="Close menu"><X /></button></div>
         <nav>
-          {tabs.map((item) => {
+          {visibleTabs.map((item) => {
             const Icon = item.icon;
             return <button className={tab === item.id ? "active" : ""} key={item.id} type="button" onClick={() => { setTab(item.id); setNavOpen(false); }}><Icon /><span>{item.label}</span>{item.id === "inquiries" && newInquiryCount > 0 && <b>{newInquiryCount}</b>}</button>;
           })}
@@ -512,32 +550,69 @@ export function EmployeeDashboard({ initialData, access, userId }: { initialData
         {busy && <div className="employee-progress" />}
 
         <div className="employee-content">
-          {tab === "overview" && <Overview data={data} balances={pointBalances} onTab={setTab} onNewAppointment={() => setAppointmentEditor("new")} />}
+          {tab === "overview" && <Overview data={data} balances={pointBalances} canManageCalendar={canManageCalendar} onTab={setTab} onNewAppointment={() => setAppointmentEditor("new")} />}
           {tab === "inquiries" && <Inquiries inquiries={data.inquiries} onStatus={updateInquiryStatus} onConvert={setConvertInquiry} />}
-          {tab === "calendar" && <CalendarPanel appointments={data.appointments} customers={data.customers} onCreate={() => setAppointmentEditor("new")} onEdit={setAppointmentEditor} />}
+          {tab === "calendar" && (
+            <CalendarPanel
+              appointments={data.appointments}
+              assignments={data.assignments}
+              employees={data.employees}
+              customers={data.customers}
+              canManageCalendar={canManageCalendar}
+              onCreate={() => setAppointmentEditor("new")}
+              onOpen={(appointment) => canManageCalendar ? setAppointmentEditor(appointment) : setAppointmentViewer(appointment)}
+            />
+          )}
           {tab === "customers" && <Customers customers={data.customers} balances={pointBalances} points={data.points} onCreate={() => setCustomerEditor("new")} onEdit={setCustomerEditor} />}
           {tab === "loyalty" && <LoyaltyPanel data={data} balances={pointBalances} onSaveSettings={saveLoyalty} onAddPoints={addPoints} onEditReward={setRewardEditor} onNewReward={() => setRewardEditor("new")} />}
           {tab === "catalog" && <CatalogPanel catalog={data.catalog} onEdit={setCatalogEditor} onNew={() => setCatalogEditor("new")} />}
+          {tab === "employees" && canManageEmployees && (
+            <EmployeeManagement
+              initialEmployees={data.employees}
+              onEmployeesChange={(employees) => setData((previous) => ({ ...previous, employees }))}
+            />
+          )}
         </div>
       </main>
 
       {customerEditor && <CustomerModal current={customerEditor} busy={busy} onClose={() => setCustomerEditor(null)} onSave={saveCustomer} onDelete={deleteCustomer} />}
-      {appointmentEditor && <AppointmentModal current={appointmentEditor} customers={data.customers} catalog={data.catalog} busy={busy} onClose={() => setAppointmentEditor(null)} onSave={saveAppointment} onDelete={deleteAppointment} />}
+      {appointmentEditor && (
+        <AppointmentModal
+          current={appointmentEditor}
+          customers={data.customers}
+          catalog={data.catalog}
+          employees={data.employees.filter((employee) => employee.is_active)}
+          assignments={data.assignments}
+          busy={busy}
+          onClose={() => setAppointmentEditor(null)}
+          onSave={saveAppointment}
+          onDelete={deleteAppointment}
+        />
+      )}
+      {appointmentViewer && (
+        <AppointmentDetailsModal
+          appointment={appointmentViewer}
+          customers={data.customers}
+          employees={data.employees}
+          assignments={data.assignments}
+          onClose={() => setAppointmentViewer(null)}
+        />
+      )}
       {catalogEditor && <CatalogModal current={catalogEditor} busy={busy} onClose={() => setCatalogEditor(null)} onSave={saveCatalog} />}
       {rewardEditor && <RewardModal current={rewardEditor} busy={busy} onClose={() => setRewardEditor(null)} onSave={saveReward} />}
-      {convertInquiry && <ConvertInquiryModal inquiry={convertInquiry} loyalty={data.loyalty} busy={busy} onClose={() => setConvertInquiry(null)} onSave={completeConversion} />}
+      {convertInquiry && <ConvertInquiryModal inquiry={convertInquiry} loyalty={data.loyalty} employees={data.employees.filter((employee) => employee.is_active)} busy={busy} onClose={() => setConvertInquiry(null)} onSave={completeConversion} />}
     </div>
   );
 }
 
-function Overview({ data, balances, onTab, onNewAppointment }: { data: DashboardData; balances: Map<string, number>; onTab: (tab: Tab) => void; onNewAppointment: () => void }) {
+function Overview({ data, balances, canManageCalendar, onTab, onNewAppointment }: { data: DashboardData; balances: Map<string, number>; canManageCalendar: boolean; onTab: (tab: Tab) => void; onNewAppointment: () => void }) {
   const now = new Date();
   const upcoming = data.appointments.filter((item) => new Date(item.ends_at) >= now && item.status !== "cancelled").slice(0, 5);
   const openInquiries = data.inquiries.filter((item) => item.status === "new" || item.status === "contacted");
   const totalPoints = [...balances.values()].reduce((total, points) => total + points, 0);
   return (
     <div className="employee-stack">
-      <section className="employee-welcome"><div><span>WORKSPACE OVERVIEW</span><h2>Keep today moving.</h2><p>Manage new requests, schedule work, track customers and publish pricing from one place.</p></div><button type="button" onClick={onNewAppointment}><Plus /> Add calendar item</button></section>
+      <section className="employee-welcome"><div><span>WORKSPACE OVERVIEW</span><h2>Keep today moving.</h2><p>Manage new requests, schedule work, track customers and publish pricing from one place.</p></div>{canManageCalendar && <button type="button" onClick={onNewAppointment}><Plus /> Add calendar item</button>}</section>
       <section className="employee-metrics">
         <button type="button" onClick={() => onTab("inquiries")}><Inbox /><span>Open inquiries</span><strong>{openInquiries.length}</strong><small>{data.inquiries.filter((item) => item.status === "new").length} new</small></button>
         <button type="button" onClick={() => onTab("calendar")}><CalendarDays /><span>Upcoming</span><strong>{upcoming.length}</strong><small>scheduled items</small></button>
@@ -563,10 +638,27 @@ function Inquiries({ inquiries, onStatus, onConvert }: { inquiries: Inquiry[]; o
   );
 }
 
-function CalendarPanel({ appointments, customers, onCreate, onEdit }: { appointments: Appointment[]; customers: Customer[]; onCreate: () => void; onEdit: (appointment: Appointment) => void }) {
+function CalendarPanel({
+  appointments,
+  assignments,
+  employees,
+  customers,
+  canManageCalendar,
+  onCreate,
+  onOpen,
+}: {
+  appointments: Appointment[];
+  assignments: AppointmentAssignment[];
+  employees: EmployeeAccess[];
+  customers: Customer[];
+  canManageCalendar: boolean;
+  onCreate: () => void;
+  onOpen: (appointment: Appointment) => void;
+}) {
   const [view, setView] = useState<CalendarView>("month");
   const [cursor, setCursor] = useState(new Date());
   const customerNames = useMemo(() => new Map(customers.map((customer) => [customer.id, customer.full_name])), [customers]);
+  const employeeNames = useMemo(() => new Map(employees.map((employee) => [employee.user_id, employee.display_name])), [employees]);
   const monthStart = startOfWeek(startOfMonth(cursor), { weekStartsOn: 0 });
   const monthEnd = endOfWeek(endOfMonth(cursor), { weekStartsOn: 0 });
   const days: Date[] = [];
@@ -575,12 +667,94 @@ function CalendarPanel({ appointments, customers, onCreate, onEdit }: { appointm
   const weekDays = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
   const visibleList = appointments.filter((item) => new Date(item.ends_at) >= startOfMonth(cursor) && new Date(item.starts_at) <= addMonths(endOfMonth(cursor), 1));
   const navigate = (direction: -1 | 1) => setCursor((current) => view === "week" ? (direction === 1 ? addWeeks(current, 1) : subWeeks(current, 1)) : (direction === 1 ? addMonths(current, 1) : subMonths(current, 1)));
+  const teamNames = (appointmentId: string) => assignments
+    .filter((item) => item.appointment_id === appointmentId)
+    .map((item) => employeeNames.get(item.user_id))
+    .filter((name): name is string => Boolean(name));
+  const teamLabel = (appointmentId: string) => teamNames(appointmentId).join(", ");
+
   return (
     <section className="employee-panel calendar-panel">
-      <header><div><span>INTERNAL SCHEDULE</span><h3>{view === "week" ? `${format(weekStart, "MMM d")} – ${format(addDays(weekStart, 6), "MMM d, yyyy")}` : format(cursor, "MMMM yyyy")}</h3></div><div className="calendar-actions"><div className="segment-control"><button className={view === "month" ? "active" : ""} onClick={() => setView("month")}>Month</button><button className={view === "week" ? "active" : ""} onClick={() => setView("week")}>Week</button><button className={view === "list" ? "active" : ""} onClick={() => setView("list")}>List</button></div><button className="icon-button" type="button" onClick={() => navigate(-1)} aria-label="Previous"><ChevronLeft /></button><button className="today-button" type="button" onClick={() => setCursor(new Date())}>Today</button><button className="icon-button" type="button" onClick={() => navigate(1)} aria-label="Next"><ChevronRight /></button><button className="primary-action" type="button" onClick={onCreate}><Plus /> Add item</button></div></header>
-      {view === "month" && <div className="month-calendar"><div className="calendar-weekdays">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <span key={day}>{day}</span>)}</div><div className="calendar-days">{days.map((day) => { const dayItems = appointments.filter((item) => isSameDay(new Date(item.starts_at), day)); return <div className={`${isSameMonth(day, cursor) ? "" : "outside"} ${isToday(day) ? "today" : ""}`} key={day.toISOString()}><span>{format(day, "d")}</span>{dayItems.slice(0, 3).map((item) => <button className={`calendar-chip kind-${item.kind}`} type="button" key={item.id} onClick={() => onEdit(item)} title={item.title}><b>{item.all_day ? "" : format(new Date(item.starts_at), "h:mm")}</b>{item.title}</button>)}{dayItems.length > 3 && <small>+{dayItems.length - 3} more</small>}</div>; })}</div></div>}
-      {view === "week" && <div className="week-calendar">{weekDays.map((day) => <div key={day.toISOString()}><header className={isToday(day) ? "today" : ""}><span>{format(day, "EEE")}</span><strong>{format(day, "d")}</strong></header><div>{appointments.filter((item) => isSameDay(new Date(item.starts_at), day)).map((item) => <button className={`week-event kind-${item.kind}`} key={item.id} onClick={() => onEdit(item)}><span>{item.all_day ? "All day" : format(new Date(item.starts_at), "h:mm a")}</span><strong>{item.title}</strong><small>{item.customer_id ? customerNames.get(item.customer_id) : item.kind}</small></button>)}</div></div>)}</div>}
-      {view === "list" && (visibleList.length ? <div className="calendar-list">{visibleList.map((item) => <button type="button" key={item.id} onClick={() => onEdit(item)}><div className="date-block"><strong>{format(new Date(item.starts_at), "d")}</strong><span>{format(new Date(item.starts_at), "MMM")}</span></div><div className={`calendar-kind kind-${item.kind}`}><CalendarDays /></div><div><strong>{item.title}</strong><span>{format(new Date(item.starts_at), "EEEE · h:mm a")} – {format(new Date(item.ends_at), "h:mm a")}{item.customer_id && ` · ${customerNames.get(item.customer_id)}`}</span></div><StatusBadge status={item.status} /></button>)}</div> : <EmptyState icon={<CalendarDays />} title="No calendar items" text="Add a detailing job, class or blocked time." />)}
+      <header>
+        <div>
+          <span>INTERNAL SCHEDULE</span>
+          <h3>{view === "week" ? format(weekStart, "MMM d") + " – " + format(addDays(weekStart, 6), "MMM d, yyyy") : format(cursor, "MMMM yyyy")}</h3>
+        </div>
+        <div className="calendar-actions">
+          <div className="segment-control">
+            <button className={view === "month" ? "active" : ""} onClick={() => setView("month")}>Month</button>
+            <button className={view === "week" ? "active" : ""} onClick={() => setView("week")}>Week</button>
+            <button className={view === "list" ? "active" : ""} onClick={() => setView("list")}>List</button>
+          </div>
+          <button className="icon-button" type="button" onClick={() => navigate(-1)} aria-label="Previous"><ChevronLeft /></button>
+          <button className="today-button" type="button" onClick={() => setCursor(new Date())}>Today</button>
+          <button className="icon-button" type="button" onClick={() => navigate(1)} aria-label="Next"><ChevronRight /></button>
+          {canManageCalendar && <button className="primary-action" type="button" onClick={onCreate}><Plus /> Add item</button>}
+        </div>
+      </header>
+
+      {view === "month" && (
+        <div className="month-calendar">
+          <div className="calendar-weekdays">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <span key={day}>{day}</span>)}</div>
+          <div className="calendar-days">
+            {days.map((day) => {
+              const dayItems = appointments.filter((item) => isSameDay(new Date(item.starts_at), day));
+              return (
+                <div className={(isSameMonth(day, cursor) ? "" : "outside") + " " + (isToday(day) ? "today" : "")} key={day.toISOString()}>
+                  <span>{format(day, "d")}</span>
+                  {dayItems.slice(0, 3).map((item) => (
+                    <button className={"calendar-chip kind-" + item.kind} type="button" key={item.id} onClick={() => onOpen(item)} title={item.title}>
+                      <b>{item.all_day ? "" : format(new Date(item.starts_at), "h:mm")}</b>
+                      {item.title}
+                      {teamLabel(item.id) && <small className="calendar-team">{teamLabel(item.id)}</small>}
+                    </button>
+                  ))}
+                  {dayItems.length > 3 && <small>+{dayItems.length - 3} more</small>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {view === "week" && (
+        <div className="week-calendar">
+          {weekDays.map((day) => (
+            <div key={day.toISOString()}>
+              <header className={isToday(day) ? "today" : ""}><span>{format(day, "EEE")}</span><strong>{format(day, "d")}</strong></header>
+              <div>
+                {appointments.filter((item) => isSameDay(new Date(item.starts_at), day)).map((item) => (
+                  <button className={"week-event kind-" + item.kind} key={item.id} onClick={() => onOpen(item)}>
+                    <span>{item.all_day ? "All day" : format(new Date(item.starts_at), "h:mm a")}</span>
+                    <strong>{item.title}</strong>
+                    <small>{item.customer_id ? customerNames.get(item.customer_id) : item.kind}</small>
+                    {teamLabel(item.id) && <small className="calendar-team">{teamLabel(item.id)}</small>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {view === "list" && (
+        visibleList.length ? (
+          <div className="calendar-list">
+            {visibleList.map((item) => (
+              <button type="button" key={item.id} onClick={() => onOpen(item)}>
+                <div className="date-block"><strong>{format(new Date(item.starts_at), "d")}</strong><span>{format(new Date(item.starts_at), "MMM")}</span></div>
+                <div className={"calendar-kind kind-" + item.kind}><CalendarDays /></div>
+                <div>
+                  <strong>{item.title}</strong>
+                  <span>{format(new Date(item.starts_at), "EEEE · h:mm a")} – {format(new Date(item.ends_at), "h:mm a")}{item.customer_id && " · " + customerNames.get(item.customer_id)}</span>
+                  {teamLabel(item.id) && <small className="calendar-team">{teamLabel(item.id)}</small>}
+                </div>
+                <StatusBadge status={item.status} />
+              </button>
+            ))}
+          </div>
+        ) : <EmptyState icon={<CalendarDays />} title="No calendar items" text="No jobs are scheduled in this date range." />
+      )}
     </section>
   );
 }
@@ -627,13 +801,125 @@ function CustomerModal({ current, busy, onClose, onSave, onDelete }: { current: 
   return <Modal title={customer ? `Edit ${customer.full_name}` : "Add customer"} onClose={onClose}><form className="employee-form modal-form" onSubmit={(event) => onSave(event, current)}><label>Full name<input name="full_name" required maxLength={120} defaultValue={customer?.full_name} /></label><div className="form-row"><label>Phone<input name="phone" type="tel" maxLength={30} defaultValue={customer?.phone ?? ""} /></label><label>Email<input name="email" type="email" maxLength={254} defaultValue={customer?.email ?? ""} /></label></div><label>Vehicle details<input name="vehicle_details" maxLength={300} defaultValue={customer?.vehicle_details ?? ""} placeholder="Year, make, model, color or condition" /></label><label>Starting points<input name="starting_points" type="number" min="0" step="1" required defaultValue={customer?.starting_points ?? 0} /><small>This sets the customer’s base balance. Later changes belong in the point ledger.</small></label><label>Notes<textarea name="notes" rows={4} defaultValue={customer?.notes ?? ""} /></label><footer>{customer && <button className="danger-action" type="button" onClick={() => onDelete(customer)} disabled={busy}><Trash2 /> Delete</button>}<span /><button className="secondary-action" type="button" onClick={onClose}>Cancel</button><button className="primary-action" type="submit" disabled={busy}><Check /> Save customer</button></footer></form></Modal>;
 }
 
-function AppointmentModal({ current, customers, catalog, busy, onClose, onSave, onDelete }: { current: Appointment | "new"; customers: Customer[]; catalog: CatalogItem[]; busy: boolean; onClose: () => void; onSave: (event: FormEvent<HTMLFormElement>, current: Appointment | "new") => void; onDelete: (appointment: Appointment) => void }) {
+function AssigneeFields({ employees, selectedIds = [] }: { employees: EmployeeAccess[]; selectedIds?: string[] }) {
+  return (
+    <fieldset>
+      <legend>Assigned employees</legend>
+      {employees.length ? (
+        <div className="employee-assignee-grid">
+          {employees.map((employee) => (
+            <label key={employee.user_id}>
+              <input name="assigned_user_ids" type="checkbox" value={employee.user_id} defaultChecked={selectedIds.includes(employee.user_id)} />
+              <span>{employee.display_name} · {employee.role === "admin" ? "Admin" : "Employee"}</span>
+            </label>
+          ))}
+        </div>
+      ) : <small>Add an employee before assigning this job.</small>}
+    </fieldset>
+  );
+}
+
+function AppointmentModal({
+  current,
+  customers,
+  catalog,
+  employees,
+  assignments,
+  busy,
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  current: Appointment | "new";
+  customers: Customer[];
+  catalog: CatalogItem[];
+  employees: EmployeeAccess[];
+  assignments: AppointmentAssignment[];
+  busy: boolean;
+  onClose: () => void;
+  onSave: (event: FormEvent<HTMLFormElement>, current: Appointment | "new") => void;
+  onDelete: (appointment: Appointment) => void;
+}) {
   const appointment = current === "new" ? null : current;
   const [defaults] = useState(() => ({
     start: appointment?.starts_at ?? new Date(Date.now() + 60 * 60 * 1000).toISOString(),
     end: appointment?.ends_at ?? new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
   }));
-  return <Modal title={appointment ? "Edit calendar item" : "Add calendar item"} onClose={onClose} wide><form className="employee-form modal-form" onSubmit={(event) => onSave(event, current)}><div className="form-row"><label>Type<select name="kind" defaultValue={appointment?.kind ?? "detailing"}>{appointmentKinds.map((kind) => <option key={kind} value={kind}>{kind.charAt(0).toUpperCase() + kind.slice(1)}</option>)}</select></label><label>Status<select name="status" defaultValue={appointment?.status ?? "tentative"}>{appointmentStatuses.map((status) => <option key={status} value={status}>{status.replace("_", " ")}</option>)}</select></label></div><label>Title<input name="title" required maxLength={160} defaultValue={appointment?.title ?? ""} placeholder="Example: Full Detail — Smith" /></label><div className="form-row"><label>Start<input name="starts_at" type="datetime-local" required defaultValue={dateTimeLocal(defaults.start)} /></label><label>End<input name="ends_at" type="datetime-local" required defaultValue={dateTimeLocal(defaults.end)} /></label></div><label className="check-label"><input name="all_day" type="checkbox" defaultChecked={appointment?.all_day} /> All-day item</label><div className="form-row"><label>Customer<select name="customer_id" defaultValue={appointment?.customer_id ?? ""}><option value="">No linked customer</option>{customers.map((customer) => <option value={customer.id} key={customer.id}>{customer.full_name}</option>)}</select></label><label>Package / class<select name="catalog_item_id" defaultValue={appointment?.catalog_item_id ?? ""}><option value="">No linked catalog item</option>{catalog.filter((item) => item.is_active).map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label></div><div className="form-row"><label>Location<input name="location" defaultValue={appointment?.location ?? ""} /></label><label>Final amount<input name="final_amount" type="number" min="0" step="0.01" defaultValue={appointment?.final_amount ?? ""} /></label></div><label>Vehicle details<input name="vehicle_details" defaultValue={appointment?.vehicle_details ?? ""} /></label><label>Notes<textarea name="notes" rows={4} defaultValue={appointment?.notes ?? ""} /></label><footer>{appointment && <button className="danger-action" type="button" onClick={() => onDelete(appointment)} disabled={busy}><Trash2 /> Delete</button>}<span /><button className="secondary-action" type="button" onClick={onClose}>Cancel</button><button className="primary-action" type="submit" disabled={busy}><Check /> Save item</button></footer></form></Modal>;
+  const selectedIds = appointment
+    ? assignments.filter((item) => item.appointment_id === appointment.id).map((item) => item.user_id)
+    : [];
+
+  return (
+    <Modal title={appointment ? "Edit calendar item" : "Add calendar item"} onClose={onClose} wide>
+      <form className="employee-form modal-form" onSubmit={(event) => onSave(event, current)}>
+        <div className="form-row">
+          <label>Type<select name="kind" defaultValue={appointment?.kind ?? "detailing"}>{appointmentKinds.map((kind) => <option key={kind} value={kind}>{kind.charAt(0).toUpperCase() + kind.slice(1)}</option>)}</select></label>
+          <label>Status<select name="status" defaultValue={appointment?.status ?? "tentative"}>{appointmentStatuses.map((status) => <option key={status} value={status}>{status.replace("_", " ")}</option>)}</select></label>
+        </div>
+        <label>Title<input name="title" required maxLength={160} defaultValue={appointment?.title ?? ""} placeholder="Example: Full Detail — Smith" /></label>
+        <div className="form-row">
+          <label>Start<input name="starts_at" type="datetime-local" required defaultValue={dateTimeLocal(defaults.start)} /></label>
+          <label>End<input name="ends_at" type="datetime-local" required defaultValue={dateTimeLocal(defaults.end)} /></label>
+        </div>
+        <label className="check-label"><input name="all_day" type="checkbox" defaultChecked={appointment?.all_day} /> All-day item</label>
+        <AssigneeFields employees={employees} selectedIds={selectedIds} />
+        <div className="form-row">
+          <label>Customer<select name="customer_id" defaultValue={appointment?.customer_id ?? ""}><option value="">No linked customer</option>{customers.map((customer) => <option value={customer.id} key={customer.id}>{customer.full_name}</option>)}</select></label>
+          <label>Package / class<select name="catalog_item_id" defaultValue={appointment?.catalog_item_id ?? ""}><option value="">No linked catalog item</option>{catalog.filter((item) => item.is_active).map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
+        </div>
+        <div className="form-row">
+          <label>Location<input name="location" defaultValue={appointment?.location ?? ""} /></label>
+          <label>Final amount<input name="final_amount" type="number" min="0" step="0.01" defaultValue={appointment?.final_amount ?? ""} /></label>
+        </div>
+        <label>Vehicle details<input name="vehicle_details" defaultValue={appointment?.vehicle_details ?? ""} /></label>
+        <label>Notes<textarea name="notes" rows={4} defaultValue={appointment?.notes ?? ""} /></label>
+        <footer>
+          {appointment && <button className="danger-action" type="button" onClick={() => onDelete(appointment)} disabled={busy}><Trash2 /> Delete</button>}
+          <span />
+          <button className="secondary-action" type="button" onClick={onClose}>Cancel</button>
+          <button className="primary-action" type="submit" disabled={busy}><Check /> Save item</button>
+        </footer>
+      </form>
+    </Modal>
+  );
+}
+
+function AppointmentDetailsModal({
+  appointment,
+  customers,
+  employees,
+  assignments,
+  onClose,
+}: {
+  appointment: Appointment;
+  customers: Customer[];
+  employees: EmployeeAccess[];
+  assignments: AppointmentAssignment[];
+  onClose: () => void;
+}) {
+  const customer = customers.find((item) => item.id === appointment.customer_id);
+  const employeeNames = new Map(employees.map((employee) => [employee.user_id, employee.display_name]));
+  const team = assignments
+    .filter((item) => item.appointment_id === appointment.id)
+    .map((item) => employeeNames.get(item.user_id))
+    .filter((name): name is string => Boolean(name));
+
+  return (
+    <Modal title={appointment.title} onClose={onClose}>
+      <div className="appointment-details">
+        <div className="appointment-details-grid">
+          <span><b>When</b>{format(new Date(appointment.starts_at), "EEE, MMM d · h:mm a")} – {format(new Date(appointment.ends_at), "h:mm a")}</span>
+          <span><b>Status</b><StatusBadge status={appointment.status} /></span>
+          <span><b>Customer</b>{customer?.full_name ?? "No linked customer"}</span>
+          <span><b>Location</b>{appointment.location ?? "Not added"}</span>
+          <span><b>Vehicle</b>{appointment.vehicle_details ?? "Not added"}</span>
+          <span><b>Type</b>{appointment.kind}</span>
+        </div>
+        <div className="appointment-team-list"><b>Assigned team</b>{team.length ? team.join(", ") : "No employees assigned"}</div>
+        {appointment.notes && <p>{appointment.notes}</p>}
+      </div>
+    </Modal>
+  );
 }
 
 function CatalogModal({ current, busy, onClose, onSave }: { current: CatalogItem | "new"; busy: boolean; onClose: () => void; onSave: (event: FormEvent<HTMLFormElement>, current: CatalogItem | "new") => void }) {
@@ -647,14 +933,48 @@ function RewardModal({ current, busy, onClose, onSave }: { current: Reward | "ne
   return <Modal title={reward ? "Edit reward" : "Add reward"} onClose={onClose}><form className="employee-form modal-form" onSubmit={(event) => onSave(event, current)}><label>Name<input name="name" required maxLength={160} defaultValue={reward?.name ?? ""} /></label><label>Description<textarea name="description" rows={3} defaultValue={reward?.description ?? ""} /></label><div className="form-row"><label>Points required<input name="points_cost" type="number" min="1" step="1" required defaultValue={reward?.points_cost ?? 25} /></label><label>Display order<input name="sort_order" type="number" step="1" required defaultValue={reward?.sort_order ?? 10} /></label></div><label className="check-label"><input name="is_active" type="checkbox" defaultChecked={reward?.is_active ?? true} /> Show this reward publicly</label><footer><span /><button className="secondary-action" type="button" onClick={onClose}>Cancel</button><button className="primary-action" type="submit" disabled={busy}><Check /> Save reward</button></footer></form></Modal>;
 }
 
-function ConvertInquiryModal({ inquiry, loyalty, busy, onClose, onSave }: { inquiry: Inquiry; loyalty: LoyaltySettings; busy: boolean; onClose: () => void; onSave: (event: FormEvent<HTMLFormElement>, inquiry: Inquiry) => void }) {
+function ConvertInquiryModal({
+  inquiry,
+  loyalty,
+  employees,
+  busy,
+  onClose,
+  onSave,
+}: {
+  inquiry: Inquiry;
+  loyalty: LoyaltySettings;
+  employees: EmployeeAccess[];
+  busy: boolean;
+  onClose: () => void;
+  onSave: (event: FormEvent<HTMLFormElement>, inquiry: Inquiry) => void;
+}) {
   const [defaults] = useState(() => {
     const start = new Date(Date.now() + 24 * 60 * 60 * 1000);
     start.setMinutes(0, 0, 0);
     return { start, end: new Date(start.getTime() + 2 * 60 * 60 * 1000) };
   });
   const interest = inquiry.service_interest || inquiry.class_interest || (inquiry.request_type === "class" ? "Detailing class" : "Detailing appointment");
-  return <Modal title={`Schedule ${inquiry.name}`} onClose={onClose}><form className="employee-form modal-form" onSubmit={(event) => onSave(event, inquiry)}><div className="conversion-summary"><UserRound /><span><strong>{inquiry.name}</strong><small>{inquiry.phone} · {interest}</small></span></div><label>Calendar title<input name="title" required defaultValue={`${interest} — ${inquiry.name}`} /></label><div className="form-row"><label>Start<input name="starts_at" type="datetime-local" required defaultValue={dateTimeLocal(defaults.start.toISOString())} /></label><label>End<input name="ends_at" type="datetime-local" required defaultValue={dateTimeLocal(defaults.end.toISOString())} /></label></div><label>Service location<input name="location" defaultValue={inquiry.county ? `${inquiry.county} County` : ""} /></label>{!inquiry.customer_id && <label>Customer starting points<input name="starting_points" type="number" min="0" step="1" required defaultValue={0} /><small>The public enrollment offer is currently {loyalty.enrollment_points} points; this customer-specific value can be changed now or later.</small></label>}<footer><span /><button className="secondary-action" type="button" onClick={onClose}>Cancel</button><button className="primary-action" type="submit" disabled={busy}><CalendarDays /> Create customer & schedule</button></footer></form></Modal>;
+
+  return (
+    <Modal title={"Schedule " + inquiry.name} onClose={onClose}>
+      <form className="employee-form modal-form" onSubmit={(event) => onSave(event, inquiry)}>
+        <div className="conversion-summary"><UserRound /><span><strong>{inquiry.name}</strong><small>{inquiry.phone} · {interest}</small></span></div>
+        <label>Calendar title<input name="title" required defaultValue={interest + " — " + inquiry.name} /></label>
+        <div className="form-row">
+          <label>Start<input name="starts_at" type="datetime-local" required defaultValue={dateTimeLocal(defaults.start.toISOString())} /></label>
+          <label>End<input name="ends_at" type="datetime-local" required defaultValue={dateTimeLocal(defaults.end.toISOString())} /></label>
+        </div>
+        <AssigneeFields employees={employees} />
+        <label>Service location<input name="location" defaultValue={inquiry.county ? inquiry.county + " County" : ""} /></label>
+        {!inquiry.customer_id && <label>Customer starting points<input name="starting_points" type="number" min="0" step="1" required defaultValue={0} /><small>The public enrollment offer is currently {loyalty.enrollment_points} points; this customer-specific value can be changed now or later.</small></label>}
+        <footer>
+          <span />
+          <button className="secondary-action" type="button" onClick={onClose}>Cancel</button>
+          <button className="primary-action" type="submit" disabled={busy}><CalendarDays /> Create customer & schedule</button>
+        </footer>
+      </form>
+    </Modal>
+  );
 }
 
 function EmptyState({ icon, title, text, action }: { icon: ReactNode; title: string; text: string; action?: ReactNode }) {
