@@ -124,7 +124,7 @@ export function EmployeeDashboard({ initialData, access, userId }: { initialData
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [data, setData] = useState(initialData);
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useState<Tab>(() => access.role === "employee" ? "calendar" : "overview");
   const [navOpen, setNavOpen] = useState(false);
   const [notice, setNotice] = useState<{ kind: "success" | "error"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -545,7 +545,7 @@ export function EmployeeDashboard({ initialData, access, userId }: { initialData
 
   const canManageCalendar = access.role === "owner" || access.role === "admin" || access.role === "support";
   const canManageEmployees = canManageCalendar;
-  const visibleTabs = canManageEmployees ? tabs : tabs.filter((item) => item.id !== "employees");
+  const visibleTabs = canManageEmployees ? tabs : tabs.filter((item) => item.id === "calendar");
   const currentTab = visibleTabs.find((item) => item.id === tab) ?? visibleTabs[0];
   const newInquiryCount = data.inquiries.filter((inquiry) => inquiry.status === "new").length;
 
@@ -575,8 +575,8 @@ export function EmployeeDashboard({ initialData, access, userId }: { initialData
         {busy && <div className="employee-progress" />}
 
         <div className="employee-content">
-          {tab === "overview" && <Overview data={data} balances={pointBalances} canManageCalendar={canManageCalendar} onTab={setTab} onNewAppointment={() => setAppointmentEditor("new")} />}
-          {tab === "inquiries" && <Inquiries inquiries={data.inquiries} onStatus={updateInquiryStatus} onConvert={setConvertInquiry} />}
+          {tab === "overview" && canManageCalendar && <Overview data={data} balances={pointBalances} canManageCalendar={canManageCalendar} onTab={setTab} onNewAppointment={() => setAppointmentEditor("new")} />}
+          {tab === "inquiries" && canManageCalendar && <Inquiries inquiries={data.inquiries} onStatus={updateInquiryStatus} onConvert={setConvertInquiry} />}
           {tab === "calendar" && (
             <CalendarPanel
               appointments={data.appointments}
@@ -588,9 +588,9 @@ export function EmployeeDashboard({ initialData, access, userId }: { initialData
               onOpen={(appointment) => canManageCalendar ? setAppointmentEditor(appointment) : setAppointmentViewer(appointment)}
             />
           )}
-          {tab === "customers" && <Customers customers={data.customers} balances={pointBalances} points={data.points} onCreate={() => setCustomerEditor("new")} onEdit={setCustomerEditor} />}
-          {tab === "loyalty" && <LoyaltyPanel data={data} balances={pointBalances} onSaveSettings={saveLoyalty} onAddPoints={addPoints} onEditReward={setRewardEditor} onNewReward={() => setRewardEditor("new")} />}
-          {tab === "catalog" && <CatalogPanel catalog={data.catalog} onEdit={setCatalogEditor} onNew={() => setCatalogEditor("new")} />}
+          {tab === "customers" && canManageCalendar && <Customers customers={data.customers} balances={pointBalances} points={data.points} onCreate={() => setCustomerEditor("new")} onEdit={setCustomerEditor} />}
+          {tab === "loyalty" && canManageCalendar && <LoyaltyPanel data={data} balances={pointBalances} onSaveSettings={saveLoyalty} onAddPoints={addPoints} onEditReward={setRewardEditor} onNewReward={() => setRewardEditor("new")} />}
+          {tab === "catalog" && canManageCalendar && <CatalogPanel catalog={data.catalog} onEdit={setCatalogEditor} onNew={() => setCatalogEditor("new")} />}
           {tab === "employees" && canManageEmployees && (
             <EmployeeManagement
               initialEmployees={data.employees}
@@ -936,7 +936,7 @@ function AppointmentDetailsModal({
         <div className="appointment-details-grid">
           <span><b>When</b>{format(new Date(appointment.starts_at), "EEE, MMM d · h:mm a")} – {format(new Date(appointment.ends_at), "h:mm a")}</span>
           <span><b>Status</b><StatusBadge status={appointment.status} /></span>
-          <span><b>Customer</b>{customer?.full_name ?? "No linked customer"}</span>
+          <span><b>Customer</b>{customer?.full_name ?? (appointment.customer_id ? "Linked customer" : "No linked customer")}</span>
           <span><b>Location</b>{appointment.location ?? "Not added"}</span>
           <span><b>Vehicle</b>{appointment.vehicle_details ?? "Not added"}</span>
           <span><b>Type</b>{appointment.kind}</span>

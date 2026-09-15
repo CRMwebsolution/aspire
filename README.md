@@ -32,7 +32,7 @@ Employees sign in at `/login` and are sent to the private workspace at `/dashboa
 
 The migration in `supabase/migrations` creates the Aspire-scoped schema, RLS policies, catalog seed data, loyalty settings, rewards and the initial private support access. Apply it once to a new Supabase environment before using the dashboard.
 
-Employee account creation and role changes run through the protected `aspire-manage-employees` Supabase Edge Function. The service-role key stays inside Supabase and is never exposed to the browser. Employee accounts default to the `employee` role and remain visible; `admin` accounts can manage the full calendar. Calendar row-level security limits employees to appointments assigned to them while administrators retain business-wide access.
+Employee account creation and role changes run through the protected `aspire-manage-employees` Supabase Edge Function. The service-role key stays inside Supabase and is never exposed to the browser. Employee accounts default to the `employee` role and receive a calendar-only workspace containing jobs assigned to them. Coworkers assigned to the same job are visible to one another. Owner, admin and support roles retain the full dashboard, and the same separation is enforced by database row-level security rather than navigation alone.
 
 ## Verification
 
