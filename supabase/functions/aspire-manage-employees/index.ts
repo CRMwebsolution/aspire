@@ -99,25 +99,38 @@ Deno.serve(async (request) => {
     if (body.action === "create") {
       const email = cleanEmail(body.email);
       if (!email) return json({ error: "Enter a valid employee email address." }, 400);
-      const password = String(body.password ?? "");
-      if (password.length < 8 || password.length > 72) {
-        return json({ error: "The temporary password must be between 8 and 72 characters." }, 400);
-      }
+      let employeeUser = await findUserByEmail(adminClient, email);
+      let created = false;
 
-      const existingUser = await findUserByEmail(adminClient, email);
-      if (existingUser) {
-        return json({ error: "An account with that email already exists. Use a different email address." }, 409);
-      }
+      if (employeeUser) {
+        const protectedResult = await adminClient
+          .from("aspire_employee_access")
+          .select("role,is_hidden")
+          .eq("business_key", BUSINESS_KEY)
+          .eq("user_id", employeeUser.id)
+          .maybeSingle();
 
-      const createResult = await adminClient.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: { display_name: displayName },
-      });
-      if (createResult.error) throw createResult.error;
-      const employeeUser = createResult.data.user;
-      if (!employeeUser) throw new Error("Supabase did not return the created user.");
+        if (protectedResult.error) throw protectedResult.error;
+        if (protectedResult.data?.is_hidden || protectedResult.data?.role === "owner" || protectedResult.data?.role === "support") {
+          return json({ error: "That protected account cannot be changed from this dashboard." }, 403);
+        }
+      } else {
+        const password = String(body.password ?? "");
+        if (password.length < 8 || password.length > 72) {
+          return json({ error: "The temporary password must be between 8 and 72 characters." }, 400);
+        }
+
+        const createResult = await adminClient.auth.admin.createUser({
+          email,
+          password,
+          email_confirm: true,
+          user_metadata: { display_name: displayName },
+        });
+        if (createResult.error) throw createResult.error;
+        employeeUser = createResult.data.user;
+        if (!employeeUser) throw new Error("Supabase did not return the created user.");
+        created = true;
+      }
 
       const accessResult = await adminClient
         .from("aspire_employee_access")
@@ -134,10 +147,10 @@ Deno.serve(async (request) => {
         .single();
 
       if (accessResult.error) {
-        await adminClient.auth.admin.deleteUser(employeeUser.id);
+        if (created) await adminClient.auth.admin.deleteUser(employeeUser.id);
         throw accessResult.error;
       }
-      return json({ employee: accessResult.data, created: true }, 201);
+      return json({ employee: accessResult.data, created }, created ? 201 : 200);
     }
 
     if (body.action === "update") {

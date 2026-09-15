@@ -28,7 +28,7 @@ Do not add a Supabase service-role key to this project. Public requests and empl
 
 ## Employee dashboard
 
-Employees sign in at `/login` and are sent to the private workspace at `/dashboard`. There is no public account-registration route. An Aspire owner or administrator creates each employee login with a temporary password, and every signed-in employee can change their own password from the dashboard. Access also requires an active row in `aspire_employee_access` for the Aspire business, so an authenticated user from another business cannot read or write Aspire records.
+Employees sign in at `/login` and are sent to the private workspace at `/dashboard`. There is no public account-registration route. An Aspire owner or administrator creates each new employee login with a temporary password, and every signed-in employee can change their own password from the dashboard. When an email already belongs to a Supabase Auth user, the dashboard adds an Aspire-specific access row without changing that user's existing password. Access always requires an active row in `aspire_employee_access` for the Aspire business, so an authenticated user from another business cannot read or write Aspire records until an Aspire administrator grants access.
 
 The migration in `supabase/migrations` creates the Aspire-scoped schema, RLS policies, catalog seed data, loyalty settings, rewards and the initial private support access. Apply it once to a new Supabase environment before using the dashboard.
 

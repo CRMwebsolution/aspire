@@ -14,6 +14,7 @@ type EmployeeManagementProps = {
 
 type FunctionResult = {
   employee: EmployeeAccess;
+  created?: boolean;
 };
 
 export function EmployeeManagement({ initialEmployees, onEmployeesChange }: EmployeeManagementProps) {
@@ -59,7 +60,9 @@ export function EmployeeManagement({ initialEmployees, onEmployeesChange }: Empl
       formElement.reset();
       setNotice({
         kind: "success",
-        text: "Employee account created. Give them the temporary password securely.",
+        text: result.created
+          ? "Employee account created. Give them the temporary password securely."
+          : "Existing account added to Aspire. Their current password was not changed.",
       });
     } catch (error) {
       setNotice({ kind: "error", text: error instanceof Error ? error.message : "Unable to add the employee." });
@@ -89,7 +92,7 @@ export function EmployeeManagement({ initialEmployees, onEmployeesChange }: Empl
           <div>
             <span>TEAM ACCESS</span>
             <h3>Add an employee</h3>
-            <p>Create a login immediately with a temporary password. The employee can change it after signing in.</p>
+            <p>Create a new login or add an existing Supabase user to this business.</p>
           </div>
           <UserPlus />
         </header>
@@ -109,9 +112,9 @@ export function EmployeeManagement({ initialEmployees, onEmployeesChange }: Empl
             <input name="email" type="email" required maxLength={254} autoComplete="email" />
           </label>
           <label>
-            Temporary password
+            Temporary password <span>new accounts only</span>
             <input name="password" type="password" required minLength={8} maxLength={72} autoComplete="new-password" />
-            <small>Use at least 8 characters. The password is used to create the login and is not stored in the employee directory.</small>
+            <small>Use at least 8 characters. If the email already has an account for another business, that account keeps its current password.</small>
           </label>
           <label>
             Role
