@@ -1,5 +1,6 @@
-import { env } from "cloudflare:workers";
 import { NextResponse } from "next/server";
+
+export const runtime = "nodejs";
 
 const counties = new Set(["Carteret", "Onslow", "Craven", "Other"]);
 const vehicles = new Set(["Car / Sedan", "SUV / Truck / Van", "Boat", "Side-by-side", "Motor home / Camper / RV", "Other"]);
@@ -41,9 +42,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "Please complete the required fields." }, { status: 400 });
     }
 
-    const runtimeEnv = env as unknown as Record<string, string | undefined>;
-    const supabaseUrl = runtimeEnv.SUPABASE_URL;
-    const supabaseKey = runtimeEnv.SUPABASE_PUBLISHABLE_KEY;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_PUBLISHABLE_KEY;
     if (!supabaseUrl || !supabaseKey) {
       return NextResponse.json({ ok: false, error: "The request form is being connected. Please call (252) 269-1517." }, { status: 503 });
     }
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "We could not save your request. Please call (252) 269-1517." }, { status: 502 });
     }
 
-    const n8nWebhook = runtimeEnv.N8N_WEBHOOK_URL;
+    const n8nWebhook = process.env.N8N_WEBHOOK_URL;
     if (n8nWebhook) {
       try {
         const n8nResponse = await fetch(n8nWebhook, {

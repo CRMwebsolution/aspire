@@ -91,7 +91,7 @@ export function AssessmentForm() {
         setStatus("sending");
         try {
           const payload = input as AssessmentPayload;
-          const result = await sendAssessment(payload);
+          await sendAssessment(payload);
           setStatus("success");
           setMessage(successMessage(payload.request_type));
           document.querySelector("#contact")?.scrollIntoView({ behavior: "smooth" });
