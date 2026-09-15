@@ -28,7 +28,7 @@ Do not add a Supabase service-role key to this project. Public requests and empl
 
 ## Employee dashboard
 
-The private workspace is available at `/employee`. It uses invite-only Supabase Auth; there is no public account-registration route. Access also requires an active row in `aspire_employee_access` for the Aspire business, so an authenticated user from another business cannot read or write Aspire records.
+Employees sign in at `/login` and are sent to the private workspace at `/dashboard`. The app uses invite-only Supabase Auth; there is no public account-registration route. Access also requires an active row in `aspire_employee_access` for the Aspire business, so an authenticated user from another business cannot read or write Aspire records.
 
 The migration in `supabase/migrations` creates the Aspire-scoped schema, RLS policies, catalog seed data, loyalty settings, rewards and the initial private support access. Apply it once to a new Supabase environment before using the dashboard.
 

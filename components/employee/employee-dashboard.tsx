@@ -162,7 +162,7 @@ export function EmployeeDashboard({ initialData, access, userId }: { initialData
 
   async function signOut() {
     await supabase.auth.signOut();
-    router.replace("/employee/login");
+    router.replace("/login");
     router.refresh();
   }
 

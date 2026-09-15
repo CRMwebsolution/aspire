@@ -17,11 +17,11 @@ export async function refreshSession(request: NextRequest) {
   });
 
   const { data } = await supabase.auth.getClaims();
-  const isLogin = request.nextUrl.pathname === "/employee/login";
+  const isLogin = request.nextUrl.pathname === "/login";
 
   if (!data?.claims && !isLogin) {
     const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = "/employee/login";
+    loginUrl.pathname = "/login";
     loginUrl.searchParams.set("next", request.nextUrl.pathname);
     return NextResponse.redirect(loginUrl);
   }
