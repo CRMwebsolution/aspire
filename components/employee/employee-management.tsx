@@ -14,7 +14,6 @@ type EmployeeManagementProps = {
 
 type FunctionResult = {
   employee: EmployeeAccess;
-  invited?: boolean;
 };
 
 export function EmployeeManagement({ initialEmployees, onEmployeesChange }: EmployeeManagementProps) {
@@ -32,12 +31,16 @@ export function EmployeeManagement({ initialEmployees, onEmployeesChange }: Empl
 
   async function invoke(body: Record<string, unknown>) {
     const result = await supabase.functions.invoke<FunctionResult>("aspire-manage-employees", { body });
-    if (result.error) throw result.error;
+    if (result.error) {
+      const response = result.error.context as Response | undefined;
+      const payload = response ? await response.json().catch(() => null) as { error?: string } | null : null;
+      throw new Error(payload?.error || result.error.message);
+    }
     if (!result.data?.employee) throw new Error("The employee service returned an incomplete response.");
     return result.data;
   }
 
-  async function inviteEmployee(event: FormEvent<HTMLFormElement>) {
+  async function createEmployee(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
@@ -46,17 +49,17 @@ export function EmployeeManagement({ initialEmployees, onEmployeesChange }: Empl
 
     try {
       const result = await invoke({
-        action: "invite",
+        action: "create",
         email: String(form.get("email") ?? "").trim(),
         display_name: String(form.get("display_name") ?? "").trim(),
+        password: String(form.get("password") ?? ""),
         role: String(form.get("role") ?? "employee"),
-        redirect_to: window.location.origin + "/login",
       });
       applyEmployee(result.employee);
       formElement.reset();
       setNotice({
         kind: "success",
-        text: result.invited ? "Employee invited and access granted." : "Existing account added to Aspire.",
+        text: "Employee account created. Give them the temporary password securely.",
       });
     } catch (error) {
       setNotice({ kind: "error", text: error instanceof Error ? error.message : "Unable to add the employee." });
@@ -86,7 +89,7 @@ export function EmployeeManagement({ initialEmployees, onEmployeesChange }: Empl
           <div>
             <span>TEAM ACCESS</span>
             <h3>Add an employee</h3>
-            <p>An invitation email is sent when the address does not already have a Supabase account.</p>
+            <p>Create a login immediately with a temporary password. The employee can change it after signing in.</p>
           </div>
           <UserPlus />
         </header>
@@ -96,7 +99,7 @@ export function EmployeeManagement({ initialEmployees, onEmployeesChange }: Empl
             <button type="button" onClick={() => setNotice(null)} aria-label="Dismiss"><X /></button>
           </div>
         )}
-        <form className="employee-form employee-invite-form" onSubmit={inviteEmployee}>
+        <form className="employee-form employee-invite-form" onSubmit={createEmployee}>
           <label>
             Full name
             <input name="display_name" required maxLength={120} autoComplete="name" />
@@ -106,6 +109,11 @@ export function EmployeeManagement({ initialEmployees, onEmployeesChange }: Empl
             <input name="email" type="email" required maxLength={254} autoComplete="email" />
           </label>
           <label>
+            Temporary password
+            <input name="password" type="password" required minLength={8} maxLength={72} autoComplete="new-password" />
+            <small>Use at least 8 characters. The password is used to create the login and is not stored in the employee directory.</small>
+          </label>
+          <label>
             Role
             <select name="role" defaultValue="employee">
               <option value="employee">Employee</option>
@@ -113,7 +121,7 @@ export function EmployeeManagement({ initialEmployees, onEmployeesChange }: Empl
             </select>
             <small>Admins can see and manage the full calendar. Employees only see jobs assigned to them.</small>
           </label>
-          <button className="primary-action" type="submit" disabled={busy}><UserPlus /> Send invite</button>
+          <button className="primary-action" type="submit" disabled={busy}><UserPlus /> Create account</button>
         </form>
       </section>
 

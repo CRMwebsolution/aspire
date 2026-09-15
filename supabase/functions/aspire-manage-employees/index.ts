@@ -12,13 +12,13 @@ const corsHeaders = {
 type EditableRole = "admin" | "employee";
 
 type RequestBody = {
-  action?: "invite" | "update";
+  action?: "create" | "update";
   email?: string;
   display_name?: string;
+  password?: string;
   role?: EditableRole;
   is_active?: boolean;
   user_id?: string;
-  redirect_to?: string;
 };
 
 function json(body: unknown, status = 200) {
@@ -40,18 +40,6 @@ function cleanName(value: unknown) {
 
 function cleanRole(value: unknown): EditableRole | null {
   return value === "admin" || value === "employee" ? value : null;
-}
-
-function safeRedirect(value: unknown) {
-  try {
-    const url = new URL(String(value ?? ""));
-    if (url.protocol === "https:" || (url.protocol === "http:" && url.hostname === "localhost")) {
-      return url.toString();
-    }
-  } catch {
-    // Supabase's configured site URL will be used when no valid redirect is supplied.
-  }
-  return undefined;
 }
 
 async function findUserByEmail(adminClient: ReturnType<typeof createClient>, email: string): Promise<User | null> {
@@ -108,34 +96,28 @@ Deno.serve(async (request) => {
     const role = cleanRole(body.role);
     if (!displayName || !role) return json({ error: "Enter a valid name and choose Employee or Admin." }, 400);
 
-    if (body.action === "invite") {
+    if (body.action === "create") {
       const email = cleanEmail(body.email);
       if (!email) return json({ error: "Enter a valid employee email address." }, 400);
-
-      let employeeUser = await findUserByEmail(adminClient, email);
-      let invited = false;
-
-      if (!employeeUser) {
-        const inviteResult = await adminClient.auth.admin.inviteUserByEmail(email, {
-          data: { display_name: displayName },
-          redirectTo: safeRedirect(body.redirect_to),
-        });
-        if (inviteResult.error) throw inviteResult.error;
-        if (!inviteResult.data.user) throw new Error("Supabase did not return the invited user.");
-        employeeUser = inviteResult.data.user;
-        invited = true;
+      const password = String(body.password ?? "");
+      if (password.length < 8 || password.length > 72) {
+        return json({ error: "The temporary password must be between 8 and 72 characters." }, 400);
       }
 
-      const protectedResult = await adminClient
-        .from("aspire_employee_access")
-        .select("role,is_hidden")
-        .eq("business_key", BUSINESS_KEY)
-        .eq("user_id", employeeUser.id)
-        .maybeSingle();
-      if (protectedResult.error) throw protectedResult.error;
-      if (protectedResult.data?.is_hidden || protectedResult.data?.role === "owner" || protectedResult.data?.role === "support") {
-        return json({ error: "That protected account cannot be changed from this dashboard." }, 403);
+      const existingUser = await findUserByEmail(adminClient, email);
+      if (existingUser) {
+        return json({ error: "An account with that email already exists. Use a different email address." }, 409);
       }
+
+      const createResult = await adminClient.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { display_name: displayName },
+      });
+      if (createResult.error) throw createResult.error;
+      const employeeUser = createResult.data.user;
+      if (!employeeUser) throw new Error("Supabase did not return the created user.");
 
       const accessResult = await adminClient
         .from("aspire_employee_access")
@@ -151,8 +133,11 @@ Deno.serve(async (request) => {
         .select("business_key,user_id,email,display_name,role,is_active,is_hidden")
         .single();
 
-      if (accessResult.error) throw accessResult.error;
-      return json({ employee: accessResult.data, invited });
+      if (accessResult.error) {
+        await adminClient.auth.admin.deleteUser(employeeUser.id);
+        throw accessResult.error;
+      }
+      return json({ employee: accessResult.data, created: true }, 201);
     }
 
     if (body.action === "update") {

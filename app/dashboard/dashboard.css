@@ -34,9 +34,10 @@
 .employee-profile div { min-width: 0; display: grid; gap: 3px; }
 .employee-profile strong { overflow: hidden; font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
 .employee-profile span { color: #7e858f; font-size: .62rem; text-transform: capitalize; }
-.employee-signout { min-height: 42px; display: flex; align-items: center; gap: 9px; margin-top: 8px; padding: 0 13px; border: 0; color: #858c97 !important; background: transparent; font-size: .7rem !important; font-weight: 800; cursor: pointer; }
-.employee-signout:hover { color: #fff !important; }
-.employee-signout svg { width: 16px; }
+.employee-security-action, .employee-signout { min-height: 42px; display: flex; align-items: center; gap: 9px; padding: 0 13px; border: 0; color: #858c97 !important; background: transparent; font-size: .7rem !important; font-weight: 800; cursor: pointer; }
+.employee-security-action { margin-top: 8px; }
+.employee-security-action:hover, .employee-signout:hover { color: #fff !important; }
+.employee-security-action svg, .employee-signout svg { width: 16px; }
 
 .employee-main { min-height: 100vh; margin-left: 270px; }
 .employee-topbar { min-height: 90px; display: flex; align-items: center; gap: 18px; padding: 16px clamp(22px, 4vw, 55px); border-bottom: 1px solid var(--emp-line); background: rgba(255,255,255,.88); backdrop-filter: blur(12px); }

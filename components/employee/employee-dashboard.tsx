@@ -9,6 +9,7 @@ import {
   ChevronRight,
   CircleDollarSign,
   Inbox,
+  KeyRound,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -133,6 +134,7 @@ export function EmployeeDashboard({ initialData, access, userId }: { initialData
   const [catalogEditor, setCatalogEditor] = useState<CatalogItem | "new" | null>(null);
   const [rewardEditor, setRewardEditor] = useState<Reward | "new" | null>(null);
   const [convertInquiry, setConvertInquiry] = useState<Inquiry | null>(null);
+  const [passwordEditor, setPasswordEditor] = useState(false);
 
   const pointBalances = useMemo(() => {
     const balances = new Map(data.customers.map((customer) => [customer.id, Number(customer.starting_points)]));
@@ -168,6 +170,28 @@ export function EmployeeDashboard({ initialData, access, userId }: { initialData
     await supabase.auth.signOut();
     router.replace("/login");
     router.refresh();
+  }
+
+  async function changePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const password = String(form.get("password") ?? "");
+    const confirmation = String(form.get("password_confirmation") ?? "");
+
+    if (password.length < 8 || password.length > 72) {
+      setNotice({ kind: "error", text: "Your new password must be between 8 and 72 characters." });
+      return;
+    }
+    if (password !== confirmation) {
+      setNotice({ kind: "error", text: "The new passwords do not match." });
+      return;
+    }
+
+    await perform("Password changed.", async () => {
+      const result = await supabase.auth.updateUser({ password });
+      if (result.error) throw result.error;
+      setPasswordEditor(false);
+    });
   }
 
   async function saveCustomer(event: FormEvent<HTMLFormElement>, current: Customer | "new") {
@@ -536,6 +560,7 @@ export function EmployeeDashboard({ initialData, access, userId }: { initialData
           })}
         </nav>
         <div className="employee-profile"><UserRound /><div><strong>{access.display_name}</strong><span>{access.role === "support" ? "Support administrator" : access.role}</span></div></div>
+        <button className="employee-security-action" type="button" onClick={() => setPasswordEditor(true)}><KeyRound /> Change password</button>
         <button className="employee-signout" type="button" onClick={signOut}><LogOut /> Sign out</button>
       </aside>
 
@@ -601,6 +626,7 @@ export function EmployeeDashboard({ initialData, access, userId }: { initialData
       {catalogEditor && <CatalogModal current={catalogEditor} busy={busy} onClose={() => setCatalogEditor(null)} onSave={saveCatalog} />}
       {rewardEditor && <RewardModal current={rewardEditor} busy={busy} onClose={() => setRewardEditor(null)} onSave={saveReward} />}
       {convertInquiry && <ConvertInquiryModal inquiry={convertInquiry} loyalty={data.loyalty} employees={data.employees.filter((employee) => employee.is_active)} busy={busy} onClose={() => setConvertInquiry(null)} onSave={completeConversion} />}
+      {passwordEditor && <PasswordModal busy={busy} onClose={() => setPasswordEditor(false)} onSave={changePassword} />}
     </div>
   );
 }
@@ -971,6 +997,29 @@ function ConvertInquiryModal({
           <span />
           <button className="secondary-action" type="button" onClick={onClose}>Cancel</button>
           <button className="primary-action" type="submit" disabled={busy}><CalendarDays /> Create customer & schedule</button>
+        </footer>
+      </form>
+    </Modal>
+  );
+}
+
+function PasswordModal({ busy, onClose, onSave }: { busy: boolean; onClose: () => void; onSave: (event: FormEvent<HTMLFormElement>) => void }) {
+  return (
+    <Modal title="Change password" onClose={onClose}>
+      <form className="employee-form modal-form" onSubmit={onSave}>
+        <label>
+          New password
+          <input name="password" type="password" required minLength={8} maxLength={72} autoComplete="new-password" autoFocus />
+          <small>Use at least 8 characters.</small>
+        </label>
+        <label>
+          Confirm new password
+          <input name="password_confirmation" type="password" required minLength={8} maxLength={72} autoComplete="new-password" />
+        </label>
+        <footer>
+          <span />
+          <button className="secondary-action" type="button" onClick={onClose} disabled={busy}>Cancel</button>
+          <button className="primary-action" type="submit" disabled={busy}><KeyRound /> Change password</button>
         </footer>
       </form>
     </Modal>
