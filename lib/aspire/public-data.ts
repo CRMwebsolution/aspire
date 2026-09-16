@@ -34,28 +34,29 @@ function catalogItem(
     published_at: now,
     created_at: now,
     updated_at: now,
+    duration_minutes: 60,
     ...options,
   };
 }
 
 export const fallbackCatalog: CatalogItem[] = [
-  catalogItem("package", "exterior-wash", "Exterior Wash", "A crisp maintenance wash with polish and protection.", 34.95, { secondary_price: 39.95, primary_price_label: "Cars / mid-size", secondary_price_label: "Large SUV / truck / van", is_starting_at: true, sort_order: 10, features: ["Wash & dry", "Quick polish / sealer", "Windows & door jambs", "Wheels & tire dressing"] }),
-  catalogItem("package", "exterior-detail", "Exterior Detail", "Decontamination and shine for tired exterior surfaces.", 74.95, { secondary_price: 79.95, primary_price_label: "Cars / mid-size", secondary_price_label: "Large SUV / truck / van", is_starting_at: true, sort_order: 20, features: ["Foam bath", "Clay bar", "Bug & tar removal", "Quick polish / sealer"] }),
-  catalogItem("package", "interior-clean", "Interior Clean", "A practical interior reset for your daily driver.", 99.95, { secondary_price: 109.95, primary_price_label: "Cars / mid-size", secondary_price_label: "Large SUV / truck / van", is_starting_at: true, sort_order: 30, features: ["Full vacuum", "Hard-surface wipe-down", "Leather, plastic & trim", "Windows & door jambs"] }),
-  catalogItem("package", "standard-detail", "Standard Detail", "Our streamlined inside-and-out maintenance package.", 119.95, { secondary_price: 129.95, primary_price_label: "Cars / mid-size", secondary_price_label: "Large SUV / truck / van", is_starting_at: true, sort_order: 40, features: ["Interior cleaning", "Exterior cleaning", "Windows inside & out", "Wheels & tires"] }),
-  catalogItem("package", "interior-detail", "Interior Detail", "A deeper clean focused on stains, surfaces and comfort.", 149.95, { secondary_price: 159.95, primary_price_label: "Cars / mid-size", secondary_price_label: "Large SUV / truck / van", is_starting_at: true, sort_order: 50, features: ["Full vacuum", "Surface stain removal", "Scrub & clean all trim", "Leather & surface conditioning"] }),
-  catalogItem("package", "full-detail", "Full Detail", "The complete interior and exterior transformation.", 269.95, { secondary_price: 289.95, primary_price_label: "Cars / mid-size", secondary_price_label: "Large SUV / truck / van", is_starting_at: true, is_featured: true, sort_order: 60, features: ["Interior Detail package", "Exterior Detail package", "Clay-bar decontamination", "Conditioning & protection"] }),
-  catalogItem("addon", "headlight-renewal", "Headlight renewal", "", 49.95, { sort_order: 10 }),
-  catalogItem("addon", "steam-cleaning", "Steam cleaning", "", 59.95, { is_starting_at: true, sort_order: 20 }),
-  catalogItem("addon", "engine-bay", "Engine bay", "", 64.95, { sort_order: 30 }),
-  catalogItem("addon", "deep-shampoo", "Deep shampoo", "", 89.95, { is_starting_at: true, sort_order: 40 }),
-  catalogItem("specialty", "ceramic-graphene-coating", "Ceramic & graphene coating", "Professional preparation and application with an in-person consultation.", 849.95, { level_label: "01", is_starting_at: true, sort_order: 10 }),
-  catalogItem("specialty", "exterior-reconditioning", "Exterior re-conditioning", "Buff and polish to improve gloss and address visible paint defects. Test spots recommended.", 299.95, { level_label: "02", is_starting_at: true, sort_order: 20 }),
-  catalogItem("specialty", "specialty-vehicles", "Boats, RVs & specialty vehicles", "Mobile detailing for boats, side-by-sides, motor homes, campers and RVs.", null, { level_label: "03", is_quote_only: true, sort_order: 30 }),
-  catalogItem("course", "level-1-basic-core", "Basic Core Auto Detailing", "Interior, exterior, reconditioning, stains, odors and extraction.", 500, { level_label: "LEVEL 1", sort_order: 10 }),
-  catalogItem("course", "level-2-intermediate", "Intermediate", "Paint correction, sanding, leveling and scratch-removal technique.", 600, { level_label: "LEVEL 2", sort_order: 20 }),
-  catalogItem("course", "level-3-advanced", "Advanced", "Ceramic and graphene coatings, SOPs and business essentials.", 700, { level_label: "LEVEL 3", sort_order: 30 }),
-  catalogItem("course", "master-all-levels", "All three levels", "A complete progression from fundamentals through advanced coatings.", 1500, { level_label: "MASTER", sort_order: 40 }),
+  catalogItem("package", "exterior-wash", "Exterior Wash", "A crisp maintenance wash with polish and protection.", 34.95, { secondary_price: 39.95, primary_price_label: "Cars / mid-size", secondary_price_label: "Large SUV / truck / van", is_starting_at: true, sort_order: 10, duration_minutes: 45, features: ["Wash & dry", "Quick polish / sealer", "Windows & door jambs", "Wheels & tire dressing"] }),
+  catalogItem("package", "exterior-detail", "Exterior Detail", "Decontamination and shine for tired exterior surfaces.", 74.95, { secondary_price: 79.95, primary_price_label: "Cars / mid-size", secondary_price_label: "Large SUV / truck / van", is_starting_at: true, sort_order: 20, duration_minutes: 90, features: ["Foam bath", "Clay bar", "Bug & tar removal", "Quick polish / sealer"] }),
+  catalogItem("package", "interior-clean", "Interior Clean", "A practical interior reset for your daily driver.", 99.95, { secondary_price: 109.95, primary_price_label: "Cars / mid-size", secondary_price_label: "Large SUV / truck / van", is_starting_at: true, sort_order: 30, duration_minutes: 90, features: ["Full vacuum", "Hard-surface wipe-down", "Leather, plastic & trim", "Windows & door jambs"] }),
+  catalogItem("package", "standard-detail", "Standard Detail", "Our streamlined inside-and-out maintenance package.", 119.95, { secondary_price: 129.95, primary_price_label: "Cars / mid-size", secondary_price_label: "Large SUV / truck / van", is_starting_at: true, sort_order: 40, duration_minutes: 120, features: ["Interior cleaning", "Exterior cleaning", "Windows inside & out", "Wheels & tires"] }),
+  catalogItem("package", "interior-detail", "Interior Detail", "A deeper clean focused on stains, surfaces and comfort.", 149.95, { secondary_price: 159.95, primary_price_label: "Cars / mid-size", secondary_price_label: "Large SUV / truck / van", is_starting_at: true, sort_order: 50, duration_minutes: 150, features: ["Full vacuum", "Surface stain removal", "Scrub & clean all trim", "Leather & surface conditioning"] }),
+  catalogItem("package", "full-detail", "Full Detail", "The complete interior and exterior transformation.", 269.95, { secondary_price: 289.95, primary_price_label: "Cars / mid-size", secondary_price_label: "Large SUV / truck / van", is_starting_at: true, is_featured: true, sort_order: 60, duration_minutes: 210, features: ["Interior Detail package", "Exterior Detail package", "Clay-bar decontamination", "Conditioning & protection"] }),
+  catalogItem("addon", "headlight-renewal", "Headlight renewal", "", 49.95, { sort_order: 10, duration_minutes: 30 }),
+  catalogItem("addon", "steam-cleaning", "Steam cleaning", "", 59.95, { is_starting_at: true, sort_order: 20, duration_minutes: 45 }),
+  catalogItem("addon", "engine-bay", "Engine bay", "", 64.95, { sort_order: 30, duration_minutes: 45 }),
+  catalogItem("addon", "deep-shampoo", "Deep shampoo", "", 89.95, { is_starting_at: true, sort_order: 40, duration_minutes: 60 }),
+  catalogItem("specialty", "ceramic-graphene-coating", "Ceramic & graphene coating", "Professional preparation and application with an in-person consultation.", 849.95, { level_label: "01", is_starting_at: true, sort_order: 10, duration_minutes: 240 }),
+  catalogItem("specialty", "exterior-reconditioning", "Exterior re-conditioning", "Buff and polish to improve gloss and address visible paint defects. Test spots recommended.", 299.95, { level_label: "02", is_starting_at: true, sort_order: 20, duration_minutes: 180 }),
+  catalogItem("specialty", "specialty-vehicles", "Boats, RVs & specialty vehicles", "Mobile detailing for boats, side-by-sides, motor homes, campers and RVs.", null, { level_label: "03", is_quote_only: true, sort_order: 30, duration_minutes: 180 }),
+  catalogItem("course", "level-1-basic-core", "Basic Core Auto Detailing", "Interior, exterior, reconditioning, stains, odors and extraction.", 500, { level_label: "LEVEL 1", sort_order: 10, duration_minutes: 480 }),
+  catalogItem("course", "level-2-intermediate", "Intermediate", "Paint correction, sanding, leveling and scratch-removal technique.", 600, { level_label: "LEVEL 2", sort_order: 20, duration_minutes: 480 }),
+  catalogItem("course", "level-3-advanced", "Advanced", "Ceramic and graphene coatings, SOPs and business essentials.", 700, { level_label: "LEVEL 3", sort_order: 30, duration_minutes: 480 }),
+  catalogItem("course", "master-all-levels", "All three levels", "A complete progression from fundamentals through advanced coatings.", 1500, { level_label: "MASTER", sort_order: 40, duration_minutes: 1440 }),
 ];
 
 export const fallbackRewards: Reward[] = [
@@ -83,7 +84,7 @@ export async function getPublicSiteData() {
     const { url, key } = getSupabaseEnv();
     const supabase = createClient(url, key, { auth: { persistSession: false } });
     const [catalogResult, rewardsResult, loyaltyResult] = await Promise.all([
-      supabase.from("aspire_catalog_items").select("id,business_key,section,slug,level_label,name,summary,primary_price,primary_price_label,secondary_price,secondary_price_label,is_starting_at,is_quote_only,is_featured,is_active,sort_order,features,published_at,created_at,updated_at").eq("business_key", ASPIRE_BUSINESS_KEY).eq("is_active", true).order("sort_order"),
+      supabase.from("aspire_catalog_items").select("id,business_key,section,slug,level_label,name,summary,primary_price,primary_price_label,secondary_price,secondary_price_label,is_starting_at,is_quote_only,is_featured,is_active,sort_order,features,duration_minutes,published_at,created_at,updated_at").eq("business_key", ASPIRE_BUSINESS_KEY).eq("is_active", true).order("sort_order"),
       supabase.from("aspire_rewards").select("id,business_key,name,description,points_cost,is_active,sort_order").eq("business_key", ASPIRE_BUSINESS_KEY).eq("is_active", true).order("sort_order"),
       supabase.from("aspire_loyalty_settings").select("business_key,enrollment_points").eq("business_key", ASPIRE_BUSINESS_KEY).maybeSingle(),
     ]);
