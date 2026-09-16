@@ -57,9 +57,9 @@ a { color: inherit; text-decoration: none; }
 .promo-bar { min-height: 34px; display: flex; align-items: center; justify-content: center; gap: 18px; padding: 7px 5vw; color: #090a0d; background: #b7ff1a; font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; }
 .promo-bar strong { font-weight: 900; }
 .site-header { height: 84px; max-width: 1480px; margin: 0 auto; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 clamp(20px, 5vw, 76px); border-bottom: 1px solid rgba(255,255,255,.08); }
-.brand { display: flex; align-items: center; gap: 12px; font-size: .94rem; font-weight: 950; letter-spacing: .08em; line-height: .9; }
-.brand small { display: block; margin-top: 7px; color: #b8bec8; font-size: .55rem; letter-spacing: .23em; }
-.brand-mark { width: 40px; height: 40px; display: grid; place-items: center; transform: skew(-10deg); color: #090a0d; background: #b7ff1a; font-size: 1.35rem; font-weight: 1000; box-shadow: 6px 6px 0 #7a23ff; }
+.brand { display: inline-flex; align-items: center; justify-self: start; }
+.brand-logo { display: block; width: auto; object-fit: contain; }
+.header-logo { height: 74px; }
 nav { display: flex; gap: 30px; color: #c8cdd5; font-size: .85rem; font-weight: 700; }
 nav a:hover { color: #b7ff1a; }
 .header-call { justify-self: end; display: inline-flex; align-items: center; gap: 9px; font-size: .9rem; font-weight: 800; }
@@ -256,6 +256,8 @@ h1 em { color: transparent; -webkit-text-stroke: 1.5px #b7ff1a; font-style: norm
 .form-message.error { color: #ffabb7; background: rgba(255,77,103,.08); border: 1px solid rgba(255,77,103,.25); }
 
 .footer { max-width: 1480px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr auto; gap: 40px; align-items: center; padding: 52px clamp(20px, 5vw, 76px); border-top: 1px solid #2a2e37; }
+.footer-brand { width: max-content; }
+.footer-logo { height: 112px; }
 .footer > p { margin: 0; color: #858d98; font-size: .8rem; line-height: 1.55; }
 .socials { display: flex; gap: 9px; }
 .socials a { width: 42px; height: 42px; display: grid; place-items: center; border: 1px solid #343943; font-size: .72rem; font-weight: 900; letter-spacing: .02em; }
@@ -288,6 +290,7 @@ h1 em { color: transparent; -webkit-text-stroke: 1.5px #b7ff1a; font-style: norm
 @media (max-width: 620px) {
   .promo-bar { gap: 6px; flex-direction: column; text-align: center; }
   .site-header { height: 74px; }
+  .header-logo { height: 62px; }
   .header-call { width: 42px; height: 42px; justify-content: center; border: 1px solid #343943; font-size: 0; }
   .hero-copy { padding: 58px 0; }
   h1 { font-size: clamp(3.6rem, 18vw, 5.5rem); }

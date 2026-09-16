@@ -57,9 +57,15 @@ export default async function Home() {
       </div>
 
       <header className="site-header">
-        <a className="brand" href="#top" aria-label="Aspire Mobil Detailing home">
-          <span className="brand-mark">A</span>
-          <span>ASPIRE <small>MOBIL DETAILING</small></span>
+        <a className="brand" href="#top" aria-label="Aspire Mobile Detail home">
+          <Image
+            className="brand-logo header-logo"
+            src="/brand/aspire-logo.webp"
+            alt="Aspire Mobile Detail"
+            width={640}
+            height={509}
+            priority
+          />
         </a>
         <nav aria-label="Primary navigation">
           <a href="#services">Services</a>
@@ -259,7 +265,15 @@ export default async function Home() {
       </section>
 
       <footer className="footer">
-        <div className="brand"><span className="brand-mark">A</span><span>ASPIRE <small>MOBIL DETAILING</small></span></div>
+        <a className="brand footer-brand" href="#top" aria-label="Back to the top of Aspire Mobile Detail">
+          <Image
+            className="brand-logo footer-logo"
+            src="/brand/aspire-logo.webp"
+            alt="Aspire Mobile Detail"
+            width={640}
+            height={509}
+          />
+        </a>
         <p>Certified mobile detailing across Carteret, Onslow and Craven counties, North Carolina.</p>
         <div className="socials">
           <a href="https://www.facebook.com/kristalsaspirations" target="_blank" rel="noreferrer" aria-label="Aspire on Facebook">fb</a>
