@@ -118,11 +118,14 @@
 .inquiry-facts b { color: #999fa8; font-size: .52rem; letter-spacing: .08em; text-transform: uppercase; }
 .inquiry-facts a { color: var(--emp-purple); }
 .inquiry-notes { margin: 15px 0 0; color: #676d77; font-size: .68rem; line-height: 1.55; }
-.inquiry-card footer { display: flex; justify-content: space-between; gap: 10px; margin-top: 18px; }
+.inquiry-card footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 18px; }
 .inquiry-card footer select { min-height: 39px; padding: 0 10px; border: 1px solid var(--emp-line); border-radius: 7px; background: #fff; font-size: .65rem; text-transform: capitalize; }
 .inquiry-card footer button { min-height: 39px; display: inline-flex; align-items: center; gap: 7px; padding: 0 12px; border: 0; border-radius: 7px; color: #fff; background: var(--emp-purple); font-size: .63rem; font-weight: 850; cursor: pointer; }
 .inquiry-card footer button:disabled { color: #8b9099; background: #eceef1; cursor: default; }
 .inquiry-card footer svg { width: 15px; }
+.inquiry-actions { display: flex; gap: 8px; }
+.inquiry-card footer .inquiry-delete { color: #a82d42; border: 1px solid #f0bdc6; background: #fff5f6; }
+.inquiry-card footer .inquiry-delete:not(:disabled):hover { background: #fdebed; }
 
 .calendar-panel > header { align-items: flex-end; }
 .calendar-actions { display: flex; align-items: center; gap: 7px; }
@@ -339,6 +342,8 @@
   .inquiry-card { padding: 15px; }
   .inquiry-facts, .form-row, .checkbox-grid { grid-template-columns: 1fr; }
   .inquiry-card footer { align-items: stretch; flex-direction: column; }
+  .inquiry-actions { flex-direction: column-reverse; }
+  .inquiry-actions button { justify-content: center; }
   .calendar-actions .segment-control { width: 100%; }
   .calendar-actions .segment-control button { flex: 1; }
   .calendar-list > button { grid-template-columns: 37px 1fr auto; }
