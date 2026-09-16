@@ -18,7 +18,7 @@ export type CatalogDraft = {
   is_active: boolean;
   sort_order: number;
   features: string[];
-  duration_minutes: number;
+  duration_minutes?: number;
 };
 
 export type CatalogItem = CatalogDraft & {
@@ -57,9 +57,9 @@ export type Customer = {
   full_name: string;
   phone: string | null;
   email: string | null;
-  phone_normalized: string | null;
+  phone_normalized?: string | null;
   vehicle_details: string | null;
-  vehicles: string[];
+  vehicles?: string[];
   notes: string | null;
   starting_points: number;
   created_at: string;
@@ -151,7 +151,7 @@ export type DashboardData = {
   loyalty: LoyaltySettings;
   appointments: Appointment[];
   assignments: AppointmentAssignment[];
-  services: AppointmentService[];
+  services?: AppointmentService[];
   employees: EmployeeAccess[];
   points: PointsTransaction[];
   inquiries: Inquiry[];
