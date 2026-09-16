@@ -327,6 +327,33 @@ export function EmployeeDashboard({ initialData, access, userId }: { initialData
     });
   }
 
+  async function deleteInquiry(inquiry: Inquiry) {
+    const linkedRecordNote = inquiry.appointment_id
+      ? "\n\nThe linked customer and calendar item will not be deleted."
+      : "";
+    if (!window.confirm(`Delete ${inquiry.name}'s inquiry? This cannot be undone.${linkedRecordNote}`)) return;
+
+    await perform("Inquiry deleted.", async () => {
+      const result = await supabase
+        .from("aspire_assessment_requests")
+        .delete()
+        .eq("id", inquiry.id)
+        .eq("business_key", ASPIRE_BUSINESS_KEY);
+      if (result.error) throw result.error;
+
+      setData((previous) => ({
+        ...previous,
+        inquiries: previous.inquiries.filter((item) => item.id !== inquiry.id),
+      }));
+      await logActivity("inquiry.deleted", "inquiry", inquiry.id, {
+        name: inquiry.name,
+        status: inquiry.status,
+        appointment_id: inquiry.appointment_id,
+        customer_id: inquiry.customer_id,
+      });
+    });
+  }
+
   async function completeConversion(event: FormEvent<HTMLFormElement>, inquiry: Inquiry) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -576,7 +603,7 @@ export function EmployeeDashboard({ initialData, access, userId }: { initialData
 
         <div className="employee-content">
           {tab === "overview" && canManageCalendar && <Overview data={data} balances={pointBalances} canManageCalendar={canManageCalendar} onTab={setTab} onNewAppointment={() => setAppointmentEditor("new")} />}
-          {tab === "inquiries" && canManageCalendar && <Inquiries inquiries={data.inquiries} onStatus={updateInquiryStatus} onConvert={setConvertInquiry} />}
+          {tab === "inquiries" && canManageCalendar && <Inquiries inquiries={data.inquiries} busy={busy} onStatus={updateInquiryStatus} onConvert={setConvertInquiry} onDelete={deleteInquiry} />}
           {tab === "calendar" && (
             <CalendarPanel
               appointments={data.appointments}
@@ -653,13 +680,56 @@ function Overview({ data, balances, canManageCalendar, onTab, onNewAppointment }
   );
 }
 
-function Inquiries({ inquiries, onStatus, onConvert }: { inquiries: Inquiry[]; onStatus: (inquiry: Inquiry, status: Inquiry["status"]) => void; onConvert: (inquiry: Inquiry) => void }) {
+function Inquiries({
+  inquiries,
+  busy,
+  onStatus,
+  onConvert,
+  onDelete,
+}: {
+  inquiries: Inquiry[];
+  busy: boolean;
+  onStatus: (inquiry: Inquiry, status: Inquiry["status"]) => void;
+  onConvert: (inquiry: Inquiry) => void;
+  onDelete: (inquiry: Inquiry) => void;
+}) {
   const [filter, setFilter] = useState<"open" | "all">("open");
   const shown = inquiries.filter((item) => filter === "all" || item.status === "new" || item.status === "contacted");
   return (
     <section className="employee-panel employee-table-panel">
       <header><div><span>WEBSITE LEADS</span><h3>Inquiry queue</h3><p>Review requests, follow up, then convert accepted work to a customer and calendar item.</p></div><div className="segment-control"><button className={filter === "open" ? "active" : ""} type="button" onClick={() => setFilter("open")}>Open</button><button className={filter === "all" ? "active" : ""} type="button" onClick={() => setFilter("all")}>All</button></div></header>
-      {shown.length ? <div className="inquiry-cards">{shown.map((inquiry) => <article key={inquiry.id} className="inquiry-card"><div className="inquiry-card-head"><div className="initial-avatar">{inquiry.name.charAt(0)}</div><div><h4>{inquiry.name}</h4><span>{format(new Date(inquiry.created_at), "MMM d, yyyy · h:mm a")}</span></div><StatusBadge status={inquiry.status} /></div><div className="inquiry-facts"><span><b>{inquiry.request_type === "class" ? "Class" : "Service"}</b>{inquiry.class_interest || inquiry.service_interest || "Not specified"}</span><span><b>Contact</b><a href={`tel:${inquiry.phone}`}>{inquiry.phone}</a>{inquiry.email && <a href={`mailto:${inquiry.email}`}>{inquiry.email}</a>}</span><span><b>Location</b>{inquiry.county} County{inquiry.vehicle_type && ` · ${inquiry.vehicle_type}`}</span><span><b>Preferred time</b>{inquiry.preferred_window || "Not specified"}</span></div>{inquiry.notes && <p className="inquiry-notes">{inquiry.notes}</p>}<footer><select aria-label={`Status for ${inquiry.name}`} value={inquiry.status} onChange={(event) => onStatus(inquiry, event.target.value as Inquiry["status"])}><option value="new">New</option><option value="contacted">Contacted</option><option value="scheduled">Scheduled</option><option value="closed">Closed</option></select><button type="button" disabled={Boolean(inquiry.appointment_id)} onClick={() => onConvert(inquiry)}><CalendarDays /> {inquiry.appointment_id ? "Already scheduled" : "Convert & schedule"}</button></footer></article>)}</div> : <EmptyState icon={<Inbox />} title="No inquiries here" text="New website requests will automatically appear in this queue." />}
+      {shown.length ? (
+        <div className="inquiry-cards">
+          {shown.map((inquiry) => (
+            <article key={inquiry.id} className="inquiry-card">
+              <div className="inquiry-card-head">
+                <div className="initial-avatar">{inquiry.name.charAt(0)}</div>
+                <div><h4>{inquiry.name}</h4><span>{format(new Date(inquiry.created_at), "MMM d, yyyy · h:mm a")}</span></div>
+                <StatusBadge status={inquiry.status} />
+              </div>
+              <div className="inquiry-facts">
+                <span><b>{inquiry.request_type === "class" ? "Class" : "Service"}</b>{inquiry.class_interest || inquiry.service_interest || "Not specified"}</span>
+                <span><b>Contact</b><a href={`tel:${inquiry.phone}`}>{inquiry.phone}</a>{inquiry.email && <a href={`mailto:${inquiry.email}`}>{inquiry.email}</a>}</span>
+                <span><b>Location</b>{inquiry.county} County{inquiry.vehicle_type && ` · ${inquiry.vehicle_type}`}</span>
+                <span><b>Preferred time</b>{inquiry.preferred_window || "Not specified"}</span>
+              </div>
+              {inquiry.notes && <p className="inquiry-notes">{inquiry.notes}</p>}
+              <footer>
+                <select aria-label={`Status for ${inquiry.name}`} value={inquiry.status} disabled={busy} onChange={(event) => onStatus(inquiry, event.target.value as Inquiry["status"])}>
+                  <option value="new">New</option>
+                  <option value="contacted">Contacted</option>
+                  <option value="scheduled">Scheduled</option>
+                  <option value="closed">Closed</option>
+                </select>
+                <div className="inquiry-actions">
+                  <button className="inquiry-delete" type="button" disabled={busy} onClick={() => onDelete(inquiry)} aria-label={`Delete ${inquiry.name}'s inquiry`}><Trash2 /> Delete</button>
+                  <button type="button" disabled={busy || Boolean(inquiry.appointment_id)} onClick={() => onConvert(inquiry)}><CalendarDays /> {inquiry.appointment_id ? "Already scheduled" : "Convert & schedule"}</button>
+                </div>
+              </footer>
+            </article>
+          ))}
+        </div>
+      ) : <EmptyState icon={<Inbox />} title="No inquiries here" text="New website requests will automatically appear in this queue." />}
     </section>
   );
 }
